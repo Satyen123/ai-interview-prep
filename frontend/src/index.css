@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cyber-darker text-gray-200 antialiased overflow-x-hidden font-sans;
+  }
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background: rgba(15, 15, 23, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.glass-card {
+  background: rgba(20, 20, 30, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  background: rgba(25, 25, 40, 0.6);
+  border-color: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 10px 30px -10px rgba(139, 92, 246, 0.15);
+}
+
+.glass-card-neon:hover {
+  background: rgba(25, 25, 40, 0.6);
+  border-color: rgba(6, 182, 212, 0.35);
+  box-shadow: 0 10px 30px -10px rgba(6, 182, 212, 0.15);
+}
+
+.glass-input {
+  background: rgba(10, 10, 15, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  @apply rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-cyber-accent focus:ring-1 focus:ring-cyber-accent/30 transition-all duration-300;
+}
+
+/* Cyber Glow Animations */
+.cyber-glow-violet {
+  filter: drop-shadow(0 0 15px rgba(139, 92, 246, 0.4));
+}
+
+.cyber-glow-cyan {
+  filter: drop-shadow(0 0 15px rgba(6, 182, 212, 0.4));
+}
+
+/* Custom premium scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030303;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.4);
+}
+
+/* Custom code editor utility classes */
+.code-textarea {
+  font-family: 'Courier New', Courier, monospace;
+  @apply bg-cyber-darker text-emerald-400 p-4 rounded-xl border border-white/10 w-full min-h-[300px] outline-none focus:border-cyber-neon resize-y;
+}
