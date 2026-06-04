@@ -20,6 +20,14 @@ import Analytics from './pages/Analytics';
 import MentorChat from './pages/MentorChat';
 import AdminDashboard from './pages/AdminDashboard';
 
+// Legal Pages
+import PrivacyPolicy from './pages/Legal/PrivacyPolicy';
+import TermsConditions from './pages/Legal/TermsConditions';
+import RefundPolicy from './pages/Legal/RefundPolicy';
+import CookiePolicy from './pages/Legal/CookiePolicy';
+import AboutUs from './pages/Legal/AboutUs';
+import ContactUs from './pages/Legal/ContactUs';
+
 // Protected Route wrapper checks JWT authentication
 function PrivateRoute({ children }) {
   const { user } = useAuthStore();
@@ -52,6 +60,14 @@ export default function App() {
               <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
               <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
               <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
+
+              {/* Public Legal & Business Routes */}
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms-and-conditions" element={<TermsConditions />} />
+              <Route path="/refund-policy" element={<RefundPolicy />} />
+              <Route path="/cookie-policy" element={<CookiePolicy />} />
+              <Route path="/about-us" element={<AboutUs />} />
+              <Route path="/contact-us" element={<ContactUs />} />
 
               {/* Protected Student Routes */}
               <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
