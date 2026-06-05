@@ -57,7 +57,7 @@ export default function App() {
           <main className="flex-grow w-full bg-cyber-darker relative min-w-0">
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Landing />} />
+              <Route path="/" element={<Landing />} />
               <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
               <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <Register />} />
 
