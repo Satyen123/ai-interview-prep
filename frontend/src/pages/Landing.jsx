@@ -566,7 +566,7 @@ export default function Landing() {
       </section>
 
       {/* --- FEATURE GRID SECTION --- */}
-      <section className="py-24 max-w-6xl mx-auto px-6 border-t border-white/5" id="features">
+      <section className="py-24 max-w-[1600px] w-full mx-auto px-6 md:px-12 border-t border-white/5" id="features">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className="text-xs font-black text-cyber-neon uppercase tracking-widest block mb-3">
             ROBUST SaaS CAPABILITIES
@@ -599,7 +599,7 @@ export default function Landing() {
 
       {/* --- HOW IT WORKS: TIMELINE SECTION --- */}
       <section className="py-24 border-t border-white/5 bg-[#030303]/40">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-[1600px] w-full mx-auto px-6 md:px-12">
           <div className="text-center max-w-2xl mx-auto mb-16">
             <span className="text-xs font-black text-cyber-accent uppercase tracking-widest block mb-3 font-mono">
               PREPARATION TIMELINE
@@ -631,7 +631,7 @@ export default function Landing() {
       {/* --- DEDICATED VISUAL SHOWCASE MODULES (SCROLLING CONSOLE) --- */}
       
       {/* 1. CODING SANDBOX SHOWCASE */}
-      <section className="py-24 border-t border-white/5 max-w-6xl mx-auto px-6" id="sandbox-showcase">
+      <section className="py-24 border-t border-white/5 max-w-[1600px] w-full mx-auto px-6 md:px-12" id="sandbox-showcase">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-5 text-left flex flex-col gap-4">
             <span className="text-xs font-black text-cyber-neon uppercase tracking-widest font-mono">MODULE SHOWCASE 01</span>
@@ -654,7 +654,7 @@ export default function Landing() {
 
       {/* 2. AI INTERVIEW SHOWCASE */}
       <section className="py-24 border-t border-white/5 bg-[#030303]/20">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-[1600px] w-full mx-auto px-6 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-7 order-2 lg:order-1">
               <AIChatShowcase />
@@ -677,7 +677,7 @@ export default function Landing() {
       </section>
 
       {/* 3. ATS RESUME SHOWCASE */}
-      <section className="py-24 border-t border-white/5 max-w-6xl mx-auto px-6">
+      <section className="py-24 border-t border-white/5 max-w-[1600px] w-full mx-auto px-6 md:px-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-5 text-left flex flex-col gap-4">
             <span className="text-xs font-black text-cyber-neon uppercase tracking-widest font-mono">MODULE SHOWCASE 03</span>
@@ -700,7 +700,7 @@ export default function Landing() {
 
       {/* 4. ANALYTICS SHOWCASE */}
       <section className="py-24 border-t border-white/5 bg-[#030303]/20">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-[1600px] w-full mx-auto px-6 md:px-12">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             <div className="lg:col-span-7 order-2 lg:order-1">
               <AnalyticsShowcase />
@@ -723,7 +723,7 @@ export default function Landing() {
       </section>
 
       {/* --- SOCIAL PROOF & LOGOS SECTION --- */}
-      <section className="py-24 border-t border-white/5 max-w-6xl mx-auto px-6">
+      <section className="py-24 border-t border-white/5 max-w-[1600px] w-full mx-auto px-6 md:px-12">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className="text-xs font-black text-cyber-neon uppercase tracking-widest block mb-3 font-mono">
             TRUSTED PARTNER PATHWAYS
@@ -799,7 +799,7 @@ export default function Landing() {
 
       {/* --- PRICING SECTION --- */}
       <section className="py-24 border-t border-white/5 bg-gradient-to-b from-transparent via-purple-950/5 to-black" id="pricing">
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-[1600px] w-full mx-auto px-6 md:px-12">
           
           <div className="text-center max-w-2xl mx-auto mb-16">
             <span className="text-xs font-black text-cyber-neon uppercase tracking-widest block mb-3">
@@ -827,7 +827,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto items-stretch select-none">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto items-stretch select-none">
             
             {/* Free Starter Plan */}
             <div className="glass-card p-8 sm:p-10 rounded-3xl border border-white/5 flex flex-col justify-between gap-6 bg-gradient-to-br from-white/3 to-transparent relative">
@@ -920,7 +920,7 @@ export default function Landing() {
       </section>
 
       {/* --- FAQ ACCORDIONS SECTION --- */}
-      <section className="py-24 max-w-3xl mx-auto px-6 border-t border-white/5" id="faq">
+      <section className="py-24 max-w-5xl mx-auto px-6 border-t border-white/5" id="faq">
         <div className="text-center mb-16">
           <span className="text-xs font-black text-cyber-neon uppercase tracking-widest block mb-3">
             PLACEMENT KNOWLEDGEBASE
@@ -1004,7 +1004,7 @@ export default function Landing() {
       </section>
 
       {/* --- Footer --- */}
-      <footer className="border-t border-white/5 py-12 px-6 bg-black text-center text-gray-500 text-xs max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 select-none">
+      <footer className="border-t border-white/5 py-12 px-6 bg-black text-center text-gray-500 text-xs max-w-[1600px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6 select-none">
         <div className="flex items-center gap-2">
           <div className="bg-cyber-accent/20 text-cyber-accent p-2 rounded-xl border border-cyber-accent/30 shadow-inner">
             <Cpu className="w-4 h-4 animate-pulse-slow" />

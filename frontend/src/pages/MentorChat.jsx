@@ -53,7 +53,7 @@ export default function MentorChat() {
 
   return (
     <PageWrapper>
-      <div className="max-w-4xl mx-auto flex flex-col gap-6 h-[calc(100vh-120px)]">
+      <div className="w-full max-w-none flex flex-col gap-6 h-[calc(100vh-120px)] px-4 md:px-8 xl:px-12">
         
         {/* Header Title */}
         <div className="text-left shrink-0">

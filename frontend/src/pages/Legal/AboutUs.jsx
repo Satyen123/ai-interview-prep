@@ -9,7 +9,7 @@ export default function AboutUs() {
 
   return (
     <PageWrapper>
-      <div className="max-w-4xl mx-auto flex flex-col gap-8 pb-20 text-left select-none">
+      <div className="w-full max-w-7xl mx-auto flex flex-col gap-8 pb-20 text-left select-none px-4 md:px-8 xl:px-12">
         
         {/* Header Title Banner */}
         <div className="relative overflow-hidden bg-gradient-to-r from-blue-950/20 via-purple-950/20 to-transparent p-8 rounded-3xl border border-white/5 shadow-inner">

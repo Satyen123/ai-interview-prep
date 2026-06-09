@@ -66,7 +66,7 @@ export default function Profile() {
 
   return (
     <PageWrapper>
-      <div className="max-w-4xl mx-auto flex flex-col gap-6 text-left">
+      <div className="w-full max-w-none flex flex-col gap-6 text-left px-4 md:px-8 xl:px-12">
         
         {/* Header Title */}
         <div>

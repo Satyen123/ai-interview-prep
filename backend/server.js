@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 
 import connectDB from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import { rateLimiter } from './middleware/rateLimitMiddleware.js';
 
 import authRoutes from './routes/authRoutes.js';
 import interviewRoutes from './routes/interviewRoutes.js';
@@ -27,6 +28,7 @@ const app = express();
 // Standard middlewares
 app.use(express.json());
 app.use(cors());
+app.use('/api', rateLimiter);
 
 // Configure Helmet securely, permitting static PDF access
 app.use(

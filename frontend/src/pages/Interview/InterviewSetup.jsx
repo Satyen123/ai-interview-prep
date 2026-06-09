@@ -43,6 +43,17 @@ export default function InterviewSetup() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Redirect to active live interview if in progress
+  useEffect(() => {
+    const activeId = localStorage.getItem('active_interview_id');
+    if (activeId) {
+      const confirmResume = window.confirm("You have a live mock interview session in progress. Would you like to resume it now?");
+      if (confirmResume) {
+        navigate('/live-interview');
+      }
+    }
+  }, [navigate]);
+
   // Save custom roles to localStorage
   useEffect(() => {
     localStorage.setItem('custom_job_profiles', JSON.stringify(customRoles));
@@ -137,7 +148,7 @@ export default function InterviewSetup() {
 
   return (
     <PageWrapper>
-      <div className="max-w-4xl mx-auto flex flex-col gap-8 pb-12">
+      <div className="w-full max-w-none flex flex-col gap-8 pb-12 px-4 md:px-8 xl:px-12">
         
         {/* Setup Info Hero */}
         <div className="text-center">
@@ -321,7 +332,7 @@ export default function InterviewSetup() {
                 AI Interviewer Personality & Style
               </label>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 xl:max-w-none gap-3">
               {personalities.map(p => (
                 <button
                   key={p.id}

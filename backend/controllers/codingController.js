@@ -4,6 +4,13 @@ import Submission from '../models/Submission.js';
 import UserProgress from '../models/UserProgress.js';
 import Resume from '../models/Resume.js';
 import vm from 'vm';
+import fs from 'fs';
+import path from 'path';
+import { exec } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { 
   generateDSACoachingHint, 
   generateDSACodeReview, 
@@ -11,6 +18,18 @@ import {
   generateDSADynamicProblem,
   generateDSAInterviewFollowUp 
 } from '../services/aiService.js';
+
+const makeUniqueTitle = async (title) => {
+  let uniqueTitle = title.trim();
+  let exists = await CodingProblem.findOne({ title: uniqueTitle });
+  let counter = 1;
+  while (exists) {
+    uniqueTitle = `${title.trim()} ${String.fromCharCode(64 + counter)}`;
+    exists = await CodingProblem.findOne({ title: uniqueTitle });
+    counter++;
+  }
+  return uniqueTitle;
+};
 
 /**
  * Seed 15 premium-level problems if database doesn't have 15 or more
@@ -449,6 +468,15 @@ const seedProblemsIfEmpty = async () => {
       prob.difficulty = "Expert";
     }
     
+    // Pad hints to exactly 4 items
+    const hints = prob.hints || [];
+    prob.hints = [
+      hints[0] || "Analyze the problem constraints and sample test cases carefully.",
+      hints[1] || "Think about the data structures that can help optimize this process (e.g. stack, queue, map).",
+      hints[2] || "Formulate the algorithmic strategy or base case logic.",
+      hints[3] || "Verify edge conditions (empty inputs, out-of-bounds indices) before compiling."
+    ];
+    
     return prob;
   });
 
@@ -515,14 +543,10 @@ export const getCodingProblems = async (req, res, next) => {
         resumeText = resume.extractedText || '';
       }
 
-      // Generate dynamic problem using resume context & filters
-      const generated = await generateDSADynamicProblem(targetTopic, targetCompany, targetDifficulty, resumeSkills, resumeText);
+      // Generate dynamic problem using resume context, filters, and targetRole
+      const generated = await generateDSADynamicProblem(targetTopic, targetCompany, targetDifficulty, resumeSkills, resumeText, req.user.targetRole);
 
-      let problemTitle = generated.title;
-      const existingProb = await CodingProblem.findOne({ title: problemTitle });
-      if (existingProb) {
-        problemTitle += ` II (${Math.floor(Math.random() * 1000)})`;
-      }
+      const problemTitle = await makeUniqueTitle(generated.title);
 
       const newProblem = await CodingProblem.create({
         title: problemTitle,
@@ -926,6 +950,178 @@ const validateLogicKeywords = (title, code) => {
   return null;
 };
 
+const getSmartRecommendations = async (userProgress, userId) => {
+  const solvedIds = userProgress.solvedProblems?.map(p => p.problemId.toString()) || [];
+  const skippedIds = userProgress.skippedProblems?.map(id => id.toString()) || [];
+  const avoidIds = [...solvedIds, ...skippedIds];
+
+  const recommendations = [];
+
+  // Recommendation 1: Failed problem retry
+  if (userProgress.failedProblems && userProgress.failedProblems.length > 0) {
+    try {
+      const failedProb = await CodingProblem.findById(userProgress.failedProblems[0]).select('title difficulty category companyTags');
+      if (failedProb) {
+        recommendations.push({
+          type: 'Retry Failed',
+          reason: `You struggled with this problem in the past. Retry to reinforce your learning!`,
+          problem: failedProb
+        });
+      }
+    } catch (err) {}
+  }
+
+  // Recommendation 2: Weak Topic
+  let weakestTopic = 'Arrays';
+  let minScore = 100;
+  if (userProgress.topicMastery) {
+    if (userProgress.topicMastery instanceof Map) {
+      for (let [topic, score] of userProgress.topicMastery.entries()) {
+        if (score < minScore) {
+          minScore = score;
+          weakestTopic = topic;
+        }
+      }
+    } else {
+      for (let topic of Object.keys(userProgress.topicMastery)) {
+        const score = userProgress.topicMastery[topic];
+        if (score < minScore) {
+          minScore = score;
+          weakestTopic = topic;
+        }
+      }
+    }
+  }
+  
+  try {
+    const weakProb = await CodingProblem.findOne({
+      category: weakestTopic,
+      _id: { $nin: [...avoidIds, ...recommendations.map(r => r.problem._id.toString())] }
+    }).select('title difficulty category companyTags');
+    if (weakProb) {
+      recommendations.push({
+        type: 'Strengthen Weakness',
+        reason: `Boost your lowest-scoring topic: ${weakestTopic}.`,
+        problem: weakProb
+      });
+    }
+  } catch (err) {}
+
+  // Recommendation 3: Company Prep / Adaptive Difficulty
+  try {
+    const user = await User.findById(userId);
+    const targetCompany = user?.targetCompany || 'Google';
+    let targetDiff = 'Medium';
+    if (userProgress.codingReadinessScore < 40) targetDiff = 'Easy';
+    else if (userProgress.codingReadinessScore > 75) targetDiff = 'Hard';
+
+    const companyProb = await CodingProblem.findOne({
+      companyTags: targetCompany,
+      difficulty: targetDiff,
+      _id: { $nin: [...avoidIds, ...recommendations.map(r => r.problem._id.toString())] }
+    }).select('title difficulty category companyTags');
+    
+    if (companyProb) {
+      recommendations.push({
+        type: 'Company Prep',
+        reason: `Targeting ${targetCompany}? Practice this ${targetDiff} problem to prepare.`,
+        problem: companyProb
+      });
+    }
+  } catch (err) {}
+
+  // Fill in to exactly 3 if needed
+  if (recommendations.length < 3) {
+    try {
+      const backupProbs = await CodingProblem.find({
+        _id: { $nin: [...avoidIds, ...recommendations.map(r => r.problem._id.toString())] }
+      }).limit(3 - recommendations.length).select('title difficulty category companyTags');
+      
+      backupProbs.forEach(bp => {
+        recommendations.push({
+          type: 'General Practice',
+          reason: `Refined recommendation to broaden your algorithmic scope.`,
+          problem: bp
+        });
+      });
+    } catch (err) {}
+  }
+
+  return recommendations.slice(0, 3);
+};
+
+const updateWeeklyGoalsAndAchievements = async (userProgress, user, problem, status) => {
+  // Weekly goals logic
+  if (status === 'Accepted') {
+    if (!userProgress.weeklyGoals) {
+      userProgress.weeklyGoals = {
+        solvedGoal: 10,
+        solvedCurrent: 0,
+        graphGoal: 3,
+        graphCurrent: 0,
+        accuracyGoal: 80
+      };
+    }
+    userProgress.weeklyGoals.solvedCurrent += 1;
+    if (problem.category === 'Graphs' || problem.category === 'Graph' || problem.category === 'Union Find') {
+      userProgress.weeklyGoals.graphCurrent += 1;
+    }
+  }
+  
+  // Achievements engine logic
+  const targetAchievements = [
+    { id: 'first_solve', name: 'First Steps', description: 'Solve your first coding problem', category: 'solved', threshold: 1, badge: '🚀' },
+    { id: 'solve_5', name: 'DSA Explorer', description: 'Solve 5 coding problems', category: 'solved', threshold: 5, badge: '🧭' },
+    { id: 'solve_15', name: 'Code Warrior', description: 'Solve 15 coding problems', category: 'solved', threshold: 15, badge: '⚔️' },
+    { id: 'readiness_75', name: 'Job Ready', description: 'Reach a Career Coding Readiness Score of 75+', category: 'readiness', threshold: 75, badge: '💼' },
+    { id: 'streak_3', name: 'Consistent Coder', description: 'Maintain a 3-day active streak', category: 'streak', threshold: 3, badge: '🔥' },
+    { id: 'mastery_graphs', name: 'Graph Overlord', description: 'Reach 80%+ mastery in Graphs/Union Find', category: 'mastery', threshold: 80, badge: '🕸️' }
+  ];
+
+  // Initialize achievements grid if empty
+  if (!userProgress.achievements || userProgress.achievements.length === 0) {
+    userProgress.achievements = targetAchievements.map(a => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      category: a.category,
+      progress: 0,
+      unlocked: false,
+      unlockedAt: null,
+      badge: a.badge
+    }));
+  }
+
+  // Update progress for each achievement
+  for (let ach of userProgress.achievements) {
+    if (ach.unlocked) continue;
+    
+    let currentVal = 0;
+    if (ach.id === 'first_solve' || ach.id === 'solve_5' || ach.id === 'solve_15') {
+      currentVal = userProgress.solvedProblems.length;
+    } else if (ach.id === 'readiness_75') {
+      currentVal = userProgress.codingReadinessScore || 0;
+    } else if (ach.id === 'streak_3') {
+      currentVal = userProgress.streak || 0;
+    } else if (ach.id === 'mastery_graphs') {
+      currentVal = userProgress.topicMastery instanceof Map 
+        ? (userProgress.topicMastery.get('Graphs') || userProgress.topicMastery.get('Graph') || userProgress.topicMastery.get('Union Find') || 0)
+        : (userProgress.topicMastery?.['Graphs'] || userProgress.topicMastery?.['Graph'] || userProgress.topicMastery?.['Union Find'] || 0);
+    }
+
+    const goal = targetAchievements.find(ta => ta.id === ach.id).threshold;
+    ach.progress = Math.min(Math.round((currentVal / goal) * 100), 100);
+    
+    if (ach.progress >= 100) {
+      ach.unlocked = true;
+      ach.unlockedAt = new Date();
+      // Add badge to user
+      user.badges.push({ name: ach.name, icon: ach.badge });
+      user.xp += 100; // award 100 XP per achievement unlocked!
+    }
+  }
+};
+
 export const submitCodingSolution = async (req, res, next) => {
   const { problemId, code, language, customInput, isRunOnly } = req.body;
 
@@ -1004,61 +1200,108 @@ export const submitCodingSolution = async (req, res, next) => {
             log: (...args) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '))
           };
 
-          let funcName = "twoSum";
-          if (problem.title === "Valid Parentheses") funcName = "isValid";
-          else if (problem.title === "Reverse a String") funcName = "reverseString";
-          else if (problem.title === "Merge Two Sorted Lists") funcName = "mergeTwoLists";
-          else if (problem.title === "Binary Search") funcName = "search";
-          else if (problem.title === "Maximum Subarray") funcName = "maxSubArray";
-          else if (problem.title === "Container With Most Water") funcName = "maxArea";
-          else if (problem.title === "Longest Substring Without Repeating Characters") funcName = "lengthOfLongestSubstring";
-          else if (problem.title === "Top K Frequent Elements") funcName = "topKFrequent";
-          else if (problem.title === "Number of Islands") funcName = "numIslands";
-          else if (problem.title === "Subsets") funcName = "subsets";
-          else if (problem.title === "Fibonacci Number") funcName = "fib";
-          else if (problem.title === "Implement Queue using Stacks") funcName = "MyQueue";
-          else if (problem.title === "Lowest Common Ancestor of a Binary Search Tree") funcName = "lowestCommonAncestor";
-          else if (problem.title === "Edit Distance") funcName = "minDistance";
-
           const cleanJSCode = language === 'typescript' ? stripTSTypes(code) : code;
+          const classMatch = cleanJSCode.match(/class\s+(\w+)/);
+          const classClassName = classMatch ? classMatch[1] : null;
+
+          let funcName = null;
+          if (!classClassName) {
+            const funcMatch = cleanJSCode.match(/function\s+(\w+)/);
+            if (funcMatch) funcName = funcMatch[1];
+            else {
+              const arrowMatch = cleanJSCode.match(/(?:const|let|var)\s+(\w+)\s*=\s*(?:function|\([^)]*\)\s*=>)/);
+              if (arrowMatch) funcName = arrowMatch[1];
+            }
+            if (!funcName) {
+              const mapping = {
+                "Two Sum": "twoSum",
+                "Valid Parentheses": "isValid",
+                "Reverse a String": "reverseString",
+                "Merge Two Sorted Lists": "mergeTwoLists",
+                "Binary Search": "search",
+                "Maximum Subarray": "maxSubArray",
+                "Container With Most Water": "maxArea",
+                "Longest Substring Without Repeating Characters": "lengthOfLongestSubstring",
+                "Top K Frequent Elements": "topKFrequent",
+                "Number of Islands": "numIslands",
+                "Subsets": "subsets",
+                "Fibonacci Number": "fib",
+                "Lowest Common Ancestor of a Binary Search Tree": "lowestCommonAncestor",
+                "Edit Distance": "minDistance"
+              };
+              funcName = mapping[problem.title] || "solve";
+            }
+          }
+
+          const startExec = Date.now();
           const sandbox = { console: customConsole, process: {}, global: {} };
           const context = vm.createContext(sandbox);
-          const startExec = Date.now();
 
           for (let i = 0; i < totalTestCases; i++) {
             const tc = targetTestCases[i];
             let scriptString = `${cleanJSCode}\n\n`;
 
-            if (problem.title === "Implement Queue using Stacks") {
-              scriptString += `
-                const q = new MyQueue();
-                const res = [];
-                const ops = ${tc.input.split(',')[0]};
-                const args = ${tc.input.substring(tc.input.indexOf(',') + 1)};
-                for(let k=0; k<ops.length; k++) {
-                  if(ops[k] === 'push') { q.push(args[k][0]); res.push(null); }
-                  else if(ops[k] === 'pop') { res.push(q.pop()); }
-                  else if(ops[k] === 'peek') { res.push(q.peek()); }
-                  else if(ops[k] === 'empty') { res.push(q.empty()); }
+            if (classClassName) {
+              let commands = [];
+              let args = [];
+              try {
+                const parsed = JSON.parse(`[${tc.input}]`);
+                if (Array.isArray(parsed) && parsed.length >= 2 && Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+                  commands = parsed[0];
+                  args = parsed[1];
                 }
-                res;
+              } catch (err) {
+                const match = tc.input.match(/\[([\s\S]+?)\],\s*\[([\s\S]+)\]/);
+                if (match) {
+                  try {
+                    commands = JSON.parse(`[${match[1]}]`);
+                    args = JSON.parse(`[${match[2]}]`);
+                  } catch (e) {}
+                }
+              }
+
+              scriptString += `
+                (function() {
+                  const commands = ${JSON.stringify(commands)};
+                  const args = ${JSON.stringify(args)};
+                  const obj = new ${classClassName}(...(commands[0] && commands[0].toLowerCase() === '${classClassName}'.toLowerCase() ? args[0] : []));
+                  const res = [];
+                  const startIndex = commands[0] && commands[0].toLowerCase() === '${classClassName}'.toLowerCase() ? 1 : 0;
+                  if (commands[0] && commands[0].toLowerCase() === '${classClassName}'.toLowerCase()) {
+                    res.push(null);
+                  }
+                  for (let k = startIndex; k < commands.length; k++) {
+                    const method = commands[k];
+                    const methodArgs = args[k] || [];
+                    if (typeof obj[method] === 'function') {
+                      const val = obj[method](...methodArgs);
+                      res.push(val === undefined ? null : val);
+                    } else {
+                      res.push(null);
+                    }
+                  }
+                  return res;
+                })()
               `;
             } else {
               scriptString += `${funcName}(${tc.input});`;
             }
 
             const script = new vm.Script(scriptString, { filename: 'submission.js' });
-            // 1.5s Execution assertion limit
             const actualValue = script.runInContext(context, { timeout: 1500 });
             actualOutput = typeof actualValue === 'object' ? JSON.stringify(actualValue) : String(actualValue);
-            
+
             const cleanExpected = tc.expectedOutput.replace(/\s+/g, '');
             const cleanActual = actualOutput.replace(/\s+/g, '');
 
             if (cleanExpected === cleanActual) {
               testCasesPassed++;
             } else {
-              errorMessage = `Wrong Answer on Test Case ${i + 1}:\nInput: ${tc.input}\nExpected: ${tc.expectedOutput}\nActual: ${actualOutput}`;
+              if (tc.isSample || tc.type === 'visible') {
+                errorMessage = `Wrong Answer on Test Case ${i + 1}:\nInput: ${tc.input}\nExpected: ${tc.expectedOutput}\nActual: ${actualOutput}`;
+              } else {
+                errorMessage = `Wrong Answer on a Hidden Test Case (${tc.type} case). Masked to prevent hardcoding.`;
+              }
               status = 'Wrong Answer';
               break;
             }
@@ -1079,6 +1322,193 @@ export const submitCodingSolution = async (req, res, next) => {
           }
           testCasesPassed = 0;
         }
+
+      } else if (language === 'python') {
+        const tempDir = path.join(__dirname, '../temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        const pyClassMatch = code.match(/class\s+(\w+)/);
+        const pyClassClassName = pyClassMatch ? pyClassMatch[1] : null;
+
+        let pyFuncName = null;
+        if (!pyClassClassName) {
+          const pyFuncMatch = code.match(/def\s+(\w+)\s*\(/);
+          if (pyFuncMatch) pyFuncName = pyFuncMatch[1];
+          else {
+            const mapping = {
+              "Two Sum": "two_sum",
+              "Valid Parentheses": "is_valid",
+              "Reverse a String": "reverse_string",
+              "Merge Two Sorted Lists": "merge_two_lists",
+              "Binary Search": "search",
+              "Maximum Subarray": "max_sub_array",
+              "Container With Most Water": "max_area",
+              "Longest Substring Without Repeating Characters": "length_of_longest_substring",
+              "Top K Frequent Elements": "top_k_frequent",
+              "Number of Islands": "num_islands",
+              "Subsets": "subsets",
+              "Fibonacci Number": "fib",
+              "Lowest Common Ancestor of a Binary Search Tree": "lowest_common_ancestor",
+              "Edit Distance": "min_distance"
+            };
+            pyFuncName = mapping[problem.title] || "solve";
+          }
+        }
+
+        const startExec = Date.now();
+        let pyTimeoutOccurred = false;
+
+        for (let i = 0; i < totalTestCases; i++) {
+          const tc = targetTestCases[i];
+
+          let argsArray = [];
+          try {
+            const context = vm.createContext({});
+            argsArray = vm.runInContext(`[ ${tc.input} ]`, context);
+          } catch (err) {
+            argsArray = [ tc.input ];
+          }
+          const argsJSONStr = JSON.stringify(argsArray);
+
+          const runId = Math.random().toString(36).substring(2, 15);
+          const tempFilePath = path.join(tempDir, `run_${runId}.py`);
+
+          let pythonScript = `${code}\n\n`;
+          if (pyClassClassName) {
+            let commands = [];
+            let args = [];
+            try {
+              const parsed = JSON.parse(`[${tc.input}]`);
+              if (Array.isArray(parsed) && parsed.length >= 2 && Array.isArray(parsed[0]) && Array.isArray(parsed[1])) {
+                commands = parsed[0];
+                args = parsed[1];
+              }
+            } catch (err) {
+              const match = tc.input.match(/\[([\s\S]+?)\],\s*\[([\s\S]+)\]/);
+              if (match) {
+                try {
+                  commands = JSON.parse(`[${match[1]}]`);
+                  args = JSON.parse(`[${match[2]}]`);
+                } catch (e) {}
+              }
+            }
+
+            pythonScript += `
+import json
+import sys
+
+try:
+    commands = ${JSON.stringify(commands)}
+    args = ${JSON.stringify(args)}
+    class_name = "${pyClassClassName}"
+    cls = globals()[class_name]
+    init_args = args[0] if (commands[0].lower() == class_name.lower()) else []
+    obj = cls(*init_args)
+    res = []
+    start_idx = 1 if (commands[0].lower() == class_name.lower()) else 0
+    if commands[0].lower() == class_name.lower():
+        res.append(None)
+    for k in range(start_idx, len(commands)):
+        method = commands[k]
+        method_args = args[k] if k < len(args) else []
+        if hasattr(obj, method):
+            val = getattr(obj, method)(*method_args)
+            res.append(val)
+        else:
+            res.append(None)
+    print(json.dumps(res))
+except Exception as e:
+    print("ERROR:", str(e), file=sys.stderr)
+    sys.exit(1)
+`;
+          } else {
+            pythonScript += `
+import json
+import sys
+
+try:
+    args = json.loads('''${argsJSONStr}''')
+    func_name = "${pyFuncName}"
+    func = globals()[func_name]
+    val = func(*args)
+    print(json.dumps(val))
+except Exception as e:
+    print("ERROR:", str(e), file=sys.stderr)
+    sys.exit(1)
+`;
+          }
+
+          let executionError = null;
+          let pyStdout = '';
+
+          try {
+            fs.writeFileSync(tempFilePath, pythonScript);
+            
+            pyStdout = await new Promise((resolve, reject) => {
+              exec(`python "${tempFilePath}"`, { timeout: 1500 }, (error, stdout, stderr) => {
+                if (error) {
+                  if (error.killed) {
+                    reject(new Error('timeout'));
+                  } else {
+                    reject(new Error(stderr.trim() || error.message));
+                  }
+                } else {
+                  resolve(stdout);
+                }
+              });
+            });
+
+          } catch (err) {
+            executionError = err;
+          } finally {
+            try {
+              if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+              }
+            } catch (e) {}
+          }
+
+          if (executionError) {
+            if (executionError.message.includes('timeout')) {
+              status = 'Time Limit Exceeded';
+              errorMessage = 'Time Limit Exceeded (TLE): execution exceeded safe assertion limit of 1500ms.';
+              runtime = 1500;
+              pyTimeoutOccurred = true;
+            } else {
+              status = 'Runtime Error';
+              errorMessage = `Runtime Error: ${executionError.message}`;
+            }
+            testCasesPassed = 0;
+            break;
+          }
+
+          actualOutput = pyStdout.trim();
+          const cleanExpected = tc.expectedOutput.replace(/\s+/g, '');
+          const cleanActual = actualOutput.replace(/\s+/g, '');
+
+          if (cleanExpected === cleanActual || 
+              cleanExpected === cleanActual.replace(/true/g, 'True').replace(/false/g, 'False').replace(/null/g, 'None') ||
+              cleanExpected.toLowerCase() === cleanActual.toLowerCase()) {
+            testCasesPassed++;
+          } else {
+            if (tc.isSample || tc.type === 'visible') {
+              errorMessage = `Wrong Answer on Test Case ${i + 1}:\nInput: ${tc.input}\nExpected: ${tc.expectedOutput}\nActual: ${actualOutput}`;
+            } else {
+              errorMessage = `Wrong Answer on a Hidden Test Case (${tc.type} case). Masked to prevent hardcoding.`;
+            }
+            status = 'Wrong Answer';
+            break;
+          }
+        }
+
+        if (!pyTimeoutOccurred && status !== 'Runtime Error' && testCasesPassed === totalTestCases) {
+          status = 'Accepted';
+        }
+        runtime = Date.now() - startExec;
+        memory = parseFloat((8.5 + Math.random() * 2).toFixed(2));
+
       } else {
         // High-Fidelity 10-Language Validation Simulator
         const logicCheck = validateLogicKeywords(problem.title, trimmedCode);
@@ -1096,7 +1526,6 @@ export const submitCodingSolution = async (req, res, next) => {
           errorMessage = `Memory Limit Exceeded (MLE): Execution allocated array bounds exceeding sandboxed limit of 256MB.`;
           memory = 278.4;
         } else {
-          // Verify code outputs by evaluating inputs through actual mathematical solver
           for (let i = 0; i < totalTestCases; i++) {
             const tc = targetTestCases[i];
             const solvedOutput = solveProblemLocally(problem.title, tc.input);
@@ -1107,7 +1536,11 @@ export const submitCodingSolution = async (req, res, next) => {
             if (cleanExpected === cleanActual) {
               testCasesPassed++;
             } else {
-              errorMessage = `Wrong Answer on Test Case ${i + 1}:\nInput: ${tc.input}\nExpected: ${tc.expectedOutput}\nActual: ${solvedOutput}`;
+              if (tc.isSample || tc.type === 'visible') {
+                errorMessage = `Wrong Answer on Test Case ${i + 1}:\nInput: ${tc.input}\nExpected: ${tc.expectedOutput}\nActual: ${solvedOutput}`;
+              } else {
+                errorMessage = `Wrong Answer on a Hidden Test Case (${tc.type} case). Masked to prevent hardcoding.`;
+              }
               status = 'Wrong Answer';
               break;
             }
@@ -1115,7 +1548,6 @@ export const submitCodingSolution = async (req, res, next) => {
 
           if (testCasesPassed === totalTestCases) {
             status = 'Accepted';
-            // Language speed calibration factors
             let baseFactor = 2;
             if (language === 'python' || language === 'php') baseFactor = 30;
             else if (language === 'java' || language === 'kotlin') baseFactor = 12;
@@ -1157,7 +1589,13 @@ export const submitCodingSolution = async (req, res, next) => {
       memory,
       testCasesPassed,
       totalTestCases,
-      errorMessage
+      errorMessage,
+      problemTitle: problem.title,
+      category: problem.category,
+      difficulty: problem.difficulty,
+      companyTags: problem.companyTags || [],
+      passedCases: testCasesPassed,
+      failedCases: totalTestCases - testCasesPassed
     });
 
     // 6. Update user streak & XP details in User model
@@ -1221,6 +1659,19 @@ export const submitCodingSolution = async (req, res, next) => {
           });
         }
       }
+
+      // Check if this problem is the daily challenge
+      if (userProgress.dailyChallenge && userProgress.dailyChallenge.problemId && 
+          userProgress.dailyChallenge.problemId.toString() === problemId.toString() && 
+          !userProgress.dailyChallenge.completed) {
+        userProgress.dailyChallenge.completed = true;
+        userProgress.dailyChallenge.completedAt = new Date();
+        const dailyXPReward = userProgress.dailyChallenge.xpReward || 50;
+        user.xp += dailyXPReward;
+        xpAwarded += dailyXPReward;
+        await user.save();
+      }
+
     } else {
       // Add to failedProblems if wrong/compilation/runtime/TLE/MLE
       const solvedBefore = userProgress.solvedProblems.some(p => p.problemId.toString() === problemId);
@@ -1275,13 +1726,20 @@ export const submitCodingSolution = async (req, res, next) => {
       100
     );
 
-    // Track speed average
+    // Sync speed and memory average
     if (status === 'Accepted') {
       const speed = userProgress.codingSpeed || 0;
       userProgress.codingSpeed = speed === 0 ? runtime : Math.round((speed + runtime) / 2);
+      
+      const mem = userProgress.codingMemory || 0;
+      userProgress.codingMemory = mem === 0 ? memory : parseFloat(((mem + memory) / 2).toFixed(2));
     }
 
+    // Evaluate Achievements & Weekly Goals progress
+    await updateWeeklyGoalsAndAchievements(userProgress, user, problem, status);
+
     await userProgress.save();
+    await user.save();
 
     res.json({
       message: 'Evaluation completed.',
@@ -1310,22 +1768,22 @@ export const submitCodingSolution = async (req, res, next) => {
  */
 export const getCodingProgress = async (req, res, next) => {
   try {
-    let progress = await UserProgress.findOne({ userId: req.user._id });
+    let progress = await UserProgress.findOne({ userId: req.user._id })
+      .populate('bookmarkedProblems', 'title difficulty category companyTags')
+      .populate('favoriteProblems', 'title difficulty category companyTags')
+      .populate('recentlyViewed.problemId', 'title difficulty category companyTags')
+      .populate('lastSession.problemId', 'title difficulty category companyTags');
     
     // Fallback if progress not yet initialized
     if (!progress) {
-      progress = {
+      progress = await UserProgress.create({
+        userId: req.user._id,
         solvedProblems: [],
         failedProblems: [],
         skippedProblems: [],
         askedProblems: [],
-        topicMastery: {},
-        streak: req.user.streak,
-        codingSpeed: 0,
-        totalXP: req.user.xp,
-        accuracy: 0,
-        codingReadinessScore: 0
-      };
+        topicMastery: new Map()
+      });
     }
 
     // Compile difficulty splits including Expert tier
@@ -1336,14 +1794,17 @@ export const getCodingProgress = async (req, res, next) => {
 
     // submissions history list
     const submissions = await Submission.find({ userId: req.user._id })
-      .populate('problemId', 'title difficulty')
+      .populate('problemId', 'title difficulty category companyTags')
       .sort({ createdAt: -1 })
       .limit(15);
+
+    const recommendations = await getSmartRecommendations(progress, req.user._id);
 
     res.json({
       progress,
       difficultySplits: { easy: easyCount, medium: mediumCount, hard: hardCount, expert: expertCount },
-      submissions
+      submissions,
+      recommendations
     });
   } catch (error) {
     next(error);
@@ -1383,6 +1844,37 @@ export const generateAIProblemEndpoint = async (req, res, next) => {
   }
 
   try {
+    const progress = await UserProgress.findOne({ userId: req.user._id });
+    const solvedIds = progress?.solvedProblems?.map(p => p.problemId.toString()) || [];
+    const skippedIds = progress?.skippedProblems?.map(id => id.toString()) || [];
+    const askedIds = progress?.askedProblems?.map(id => id.toString()) || [];
+    const avoidIds = [...solvedIds, ...skippedIds, ...askedIds];
+
+    // Caching/Deduplication check: Search for existing matching unsolved problems in database first
+    let dbQuery = {};
+    if (topic) {
+      dbQuery.category = topic;
+    }
+    if (difficulty) {
+      dbQuery.difficulty = difficulty;
+    }
+    if (targetCompany) {
+      dbQuery.companyTags = targetCompany;
+    }
+    dbQuery._id = { $nin: avoidIds };
+
+    const cachedProblem = await CodingProblem.findOne(dbQuery);
+    if (cachedProblem) {
+      if (progress) {
+        progress.askedProblems.push(cachedProblem._id);
+        await progress.save();
+      }
+      return res.json({
+        message: 'AI DSA problem generated and cached successfully.',
+        problem: cachedProblem
+      });
+    }
+
     // 1. Fetch user's latest resume skills
     let resumeSkills = [];
     let resumeText = '';
@@ -1392,22 +1884,11 @@ export const generateAIProblemEndpoint = async (req, res, next) => {
       resumeText = resume.extractedText || '';
     }
 
-    // 2. Non-Repetition engine: track avoided problem lists
-    const progress = await UserProgress.findOne({ userId: req.user._id });
-    const solvedIds = progress?.solvedProblems?.map(p => p.problemId.toString()) || [];
-    const skippedIds = progress?.skippedProblems?.map(id => id.toString()) || [];
-    const askedIds = progress?.askedProblems?.map(id => id.toString()) || [];
-    const avoidIds = [...solvedIds, ...skippedIds, ...askedIds];
-
-    // Generate dynamic problem using resume context
-    const generated = await generateDSADynamicProblem(topic, targetCompany, difficulty, resumeSkills, resumeText);
+    // Generate dynamic problem using resume context & targetRole
+    const generated = await generateDSADynamicProblem(topic, targetCompany, difficulty, resumeSkills, resumeText, req.user.targetRole);
 
     // Prevent duplicate title if generated problem already exists in database
-    let problemTitle = generated.title;
-    const existingProb = await CodingProblem.findOne({ title: problemTitle });
-    if (existingProb) {
-      problemTitle += ` II (${Math.floor(Math.random() * 1000)})`;
-    }
+    const problemTitle = await makeUniqueTitle(generated.title);
 
     // Save dynamic problem into MongoDB so it has a valid _id and can be solved
     const savedProblem = await CodingProblem.create({
@@ -1589,6 +2070,197 @@ export const handleProblemAction = async (req, res, next) => {
     }
 
     res.json({ message: `Successfully registered action: ${action}` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleBookmark = async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    let progress = await UserProgress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = await UserProgress.create({ userId: req.user._id });
+    }
+    
+    const index = progress.bookmarkedProblems.indexOf(id);
+    let bookmarked = false;
+    if (index === -1) {
+      progress.bookmarkedProblems.push(id);
+      bookmarked = true;
+    } else {
+      progress.bookmarkedProblems.splice(index, 1);
+    }
+    await progress.save();
+    res.json({ message: bookmarked ? 'Problem bookmarked' : 'Bookmark removed', bookmarked });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const toggleFavorite = async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    let progress = await UserProgress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = await UserProgress.create({ userId: req.user._id });
+    }
+    
+    const index = progress.favoriteProblems.indexOf(id);
+    let favorite = false;
+    if (index === -1) {
+      progress.favoriteProblems.push(id);
+      favorite = true;
+    } else {
+      progress.favoriteProblems.splice(index, 1);
+    }
+    await progress.save();
+    res.json({ message: favorite ? 'Problem favorited' : 'Favorite removed', favorite });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const saveSessionEndpoint = async (req, res, next) => {
+  const { problemId, language, code, category, difficulty, company, isInterviewMode } = req.body;
+  try {
+    let progress = await UserProgress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = await UserProgress.create({ userId: req.user._id });
+    }
+    progress.lastSession = {
+      problemId: problemId || null,
+      language: language || 'javascript',
+      code: code || '',
+      category: category || '',
+      difficulty: difficulty || '',
+      company: company || '',
+      isInterviewMode: !!isInterviewMode
+    };
+    
+    // Also add to recentlyViewed if problemId is provided
+    if (problemId) {
+      progress.recentlyViewed = progress.recentlyViewed.filter(r => r.problemId && r.problemId.toString() !== problemId.toString());
+      progress.recentlyViewed.unshift({ problemId, viewedAt: new Date() });
+      if (progress.recentlyViewed.length > 20) {
+        progress.recentlyViewed = progress.recentlyViewed.slice(0, 20);
+      }
+    }
+    
+    await progress.save();
+    res.json({ message: 'Session saved successfully', lastSession: progress.lastSession });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDailyChallenge = async (req, res, next) => {
+  try {
+    let progress = await UserProgress.findOne({ userId: req.user._id });
+    if (!progress) {
+      progress = await UserProgress.create({ userId: req.user._id });
+    }
+
+    const todayStr = new Date().toDateString();
+    if (progress.dailyChallenge && progress.dailyChallenge.problemId && progress.dailyChallenge.assignedDate) {
+      if (progress.dailyChallenge.assignedDate.toDateString() === todayStr) {
+        const populatedProgress = await UserProgress.findOne({ userId: req.user._id })
+          .populate({
+            path: 'dailyChallenge.problemId',
+            model: 'CodingProblem'
+          });
+        return res.json(populatedProgress.dailyChallenge);
+      }
+    }
+
+    // Assign new challenge!
+    const user = await User.findById(req.user._id);
+    let targetDifficulty = 'Medium';
+    if (user.level <= 2) targetDifficulty = 'Easy';
+    else if (user.level >= 6) targetDifficulty = 'Hard';
+
+    let weakTopics = [];
+    if (progress.topicMastery) {
+      if (progress.topicMastery instanceof Map) {
+        for (let [topic, score] of progress.topicMastery.entries()) {
+          if (score < 50) weakTopics.push(topic);
+        }
+      } else {
+        for (let topic of Object.keys(progress.topicMastery)) {
+          if (progress.topicMastery[topic] < 50) weakTopics.push(topic);
+        }
+      }
+    }
+    const targetTopic = weakTopics.length > 0 ? weakTopics[Math.floor(Math.random() * weakTopics.length)] : 'Arrays';
+    const targetCompany = user.targetCompany || 'Google';
+
+    const solvedIds = progress.solvedProblems.map(p => p.problemId.toString());
+    const skippedIds = progress.skippedProblems.map(id => id.toString());
+    const avoidIds = [...solvedIds, ...skippedIds];
+
+    let query = {
+      difficulty: targetDifficulty,
+      category: targetTopic,
+      _id: { $nin: avoidIds }
+    };
+
+    let problem = await CodingProblem.findOne(query);
+
+    if (!problem) {
+      problem = await CodingProblem.findOne({ category: targetTopic, _id: { $nin: avoidIds } });
+    }
+
+    if (!problem) {
+      let resumeSkills = [];
+      let resumeText = '';
+      const resume = await Resume.findOne({ userId: req.user._id }).sort({ createdAt: -1 });
+      if (resume) {
+        resumeSkills = resume.extractedSkills || [];
+        resumeText = resume.extractedText || '';
+      }
+
+      const generated = await generateDSADynamicProblem(targetTopic, targetCompany, targetDifficulty, resumeSkills, resumeText, user.targetRole);
+      
+      const problemTitle = await makeUniqueTitle(generated.title);
+      problem = await CodingProblem.create({
+        title: problemTitle,
+        description: generated.description,
+        difficulty: generated.difficulty,
+        category: generated.category,
+        constraints: generated.constraints,
+        starterTemplates: generated.starterTemplates,
+        testCases: generated.testCases,
+        tags: generated.tags,
+        expectedTime: generated.expectedTime,
+        expectedSpace: generated.expectedSpace,
+        hints: generated.hints,
+        companyTags: generated.companyTags,
+        explanation: generated.explanation,
+        optimalSolution: generated.optimalSolution || '',
+        editorial: generated.editorial || ''
+      });
+      
+      progress.askedProblems.push(problem._id);
+    }
+
+    progress.dailyChallenge = {
+      problemId: problem._id,
+      assignedDate: new Date(),
+      completed: false,
+      completedAt: null,
+      xpReward: targetDifficulty === 'Easy' ? 40 : targetDifficulty === 'Medium' ? 60 : 80
+    };
+
+    await progress.save();
+    
+    const result = {
+      problemId: problem,
+      assignedDate: progress.dailyChallenge.assignedDate,
+      completed: progress.dailyChallenge.completed,
+      xpReward: progress.dailyChallenge.xpReward
+    };
+
+    res.json(result);
   } catch (error) {
     next(error);
   }

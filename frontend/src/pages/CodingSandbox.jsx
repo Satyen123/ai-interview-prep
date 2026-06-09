@@ -36,7 +36,9 @@ import {
   Plus,
   Trash2,
   Edit2,
-  Save
+  Save,
+  Star,
+  Bookmark
 } from 'lucide-react';
 import PageWrapper from '../components/layout/PageWrapper';
 import SubscriptionModal from '../components/SubscriptionModal';
@@ -63,6 +65,8 @@ export default function CodingSandbox() {
     prevProblems,
     recruiterMessages,
     pathsData,
+    dailyChallenge,
+    unlockedHintsCount,
     fetchProblems, 
     selectProblem, 
     setLanguage, 
@@ -82,7 +86,12 @@ export default function CodingSandbox() {
     regenProblem,
     sendRecruiterMessage,
     resetRecruiterChat,
-    getPathProgress
+    getPathProgress,
+    fetchDailyChallenge,
+    unlockNextHint,
+    resumeLastSession,
+    toggleBookmark,
+    toggleFavorite
   } = useCodingStore();
 
   // Local UI States
@@ -91,6 +100,8 @@ export default function CodingSandbox() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [splitRatio, setSplitRatio] = useState('50/50'); // '40/60', '50/50', '60/40'
   const [activeMobileTab, setActiveMobileTab] = useState('problem'); // problem, editor, results
+  const [submissionSearch, setSubmissionSearch] = useState('');
+  const [submissionStatusFilter, setSubmissionStatusFilter] = useState('');
 
   // Resizable presets widths mapping
   const leftWidths = {
@@ -148,6 +159,7 @@ export default function CodingSandbox() {
     fetchProblems();
     fetchLeaderboard();
     fetchProgress();
+    fetchDailyChallenge();
     if (fetchUserProfile) fetchUserProfile();
 
     return () => {
@@ -937,8 +949,47 @@ export default function CodingSandbox() {
 
             {/* CONDITIONAL CONTROLS */}
             {!isInterviewMode ? (
-              /* Practice Mode standard filters */
-              <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 relative overflow-hidden bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50">
+              <>
+                {dailyChallenge && (
+                  <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-gradient-to-br from-amber-950/20 via-zinc-900 to-[#1e130c]/30 relative overflow-hidden mb-4 border-l-amber-500/40">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full filter blur-2xl animate-pulse"></div>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl uppercase tracking-widest flex items-center gap-1">
+                        <Zap className="w-3.5 h-3.5 fill-amber-400 animate-pulse text-amber-400" />
+                        Daily Coding Challenge
+                      </span>
+                      <span className="text-[10px] font-black text-amber-300 font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded-lg">
+                        +{dailyChallenge.xpReward || 200} XP
+                      </span>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1 text-left">
+                      <h4 className="text-xs font-black text-white">{dailyChallenge.problemId?.title || 'Daily Challenge'}</h4>
+                      <div className="flex justify-between items-center mt-2.5">
+                        <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider block">
+                          {dailyChallenge.problemId?.category} • {dailyChallenge.problemId?.difficulty}
+                        </span>
+                        {dailyChallenge.completed ? (
+                          <span className="text-[10px] font-black text-cyber-jade bg-cyber-jade/10 border border-cyber-jade/20 px-3 py-1 rounded-xl uppercase tracking-wider flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5" />
+                            Completed
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => selectProblem(dailyChallenge.problemId)}
+                            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[10px] font-black py-1.5 px-4 rounded-xl transition-all duration-300 uppercase tracking-widest shadow-md shadow-amber-500/10 hover:scale-[1.02]"
+                          >
+                            Solve Now
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Practice Mode standard filters */}
+                <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 relative overflow-hidden bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-neon/5 rounded-full filter blur-2xl"></div>
                 
                 <div className="flex justify-between items-center">
@@ -1027,8 +1078,23 @@ export default function CodingSandbox() {
                 </form>
 
                 <div className="flex flex-col gap-2 max-h-[180px] overflow-y-auto custom-scrollbar border-t border-white/5 pt-3">
-                  {problems.map((prob) => {
-                    const isLocked = !isPremiumUser && prob.difficulty !== 'Easy';
+                  {loading && problems.length === 0 ? (
+                    <>
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="p-3 rounded-xl border border-white/5 bg-white/2 animate-pulse flex flex-col gap-2">
+                          <div className="flex justify-between">
+                            <div className="h-3 bg-white/10 rounded w-1/2"></div>
+                            <div className="h-3 bg-white/10 rounded w-1/4"></div>
+                          </div>
+                          <div className="h-2.5 bg-white/10 rounded w-1/3"></div>
+                        </div>
+                      ))}
+                    </>
+                  ) : problems.length === 0 ? (
+                    <div className="text-xs text-gray-500 italic p-3 text-center">No challenges matching filter parameters.</div>
+                  ) : (
+                    problems.map((prob) => {
+                      const isLocked = !isPremiumUser && prob.difficulty !== 'Easy';
                     const isActive = activeProblem?._id === prob._id || activeProblem?.id === prob.id || activeProblem?._id === prob.id;
                     
                     return (
@@ -1074,7 +1140,7 @@ export default function CodingSandbox() {
                         )}
                       </button>
                     );
-                  })}
+                  }))}
                 </div>
 
                 {/* Practice Session Quick Controls Toolbar */}
@@ -1136,6 +1202,7 @@ export default function CodingSandbox() {
                   </div>
                 </div>
               </div>
+              </>
             ) : !interviewSession ? (
               /* Interview setup room cockpit */
               <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 relative overflow-hidden bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50">
@@ -1309,19 +1376,49 @@ export default function CodingSandbox() {
                 {/* 1. DESCRIPTION TAB */}
                 {activeLeftTab === 'description' && activeProblem && (
                   <div className="flex flex-col gap-4 animate-fadeIn">
-                    <div>
-                      <h2 className="text-base font-black text-white flex items-center gap-2">
-                        {activeProblem.title}
-                        <span className={`
-                          text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider
-                          ${activeProblem.difficulty === 'Easy' ? 'bg-cyber-jade/10 text-cyber-jade' : activeProblem.difficulty === 'Medium' ? 'bg-cyber-gold/10 text-cyber-gold' : 'bg-red-500/10 text-red-400'}
-                        `}>
-                          {activeProblem.difficulty}
+                    <div className="flex justify-between items-start flex-wrap gap-4 border-b border-white/5 pb-3">
+                      <div className="text-left">
+                        <h2 className="text-base font-black text-white flex items-center gap-2">
+                          {activeProblem.title}
+                          <span className={`
+                            text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider
+                            ${activeProblem.difficulty === 'Easy' ? 'bg-cyber-jade/10 text-cyber-jade' : activeProblem.difficulty === 'Medium' ? 'bg-cyber-gold/10 text-cyber-gold' : 'bg-red-500/10 text-red-400'}
+                          `}>
+                            {activeProblem.difficulty}
+                          </span>
+                        </h2>
+                        <span className="text-[9px] text-gray-500 font-extrabold uppercase tracking-widest mt-1 block">
+                          Category: {activeProblem.category}
                         </span>
-                      </h2>
-                      <span className="text-[9px] text-gray-500 font-extrabold uppercase tracking-widest mt-1 block">
-                        Category: {activeProblem.category}
-                      </span>
+                      </div>
+                      
+                      {/* Bookmark and Favorite Buttons */}
+                      <div className="flex items-center gap-2 select-none">
+                        <button
+                          type="button"
+                          onClick={() => toggleFavorite(activeProblem._id)}
+                          className={`p-2 rounded-xl border transition duration-300 ${
+                            (progress?.favorites || []).includes(activeProblem._id) || (progress?.favorites || []).some(id => id === activeProblem._id || id?._id === activeProblem._id)
+                              ? 'bg-yellow-500/10 border-yellow-500/35 text-yellow-400' 
+                              : 'bg-white/2 border-white/5 text-gray-500 hover:text-white hover:border-white/10'
+                          }`}
+                          title={((progress?.favorites || []).includes(activeProblem._id) || (progress?.favorites || []).some(id => id === activeProblem._id || id?._id === activeProblem._id)) ? "Remove from Favorites" : "Add to Favorites"}
+                        >
+                          <Star className={`w-4 h-4 ${((progress?.favorites || []).includes(activeProblem._id) || (progress?.favorites || []).some(id => id === activeProblem._id || id?._id === activeProblem._id)) ? 'fill-yellow-400' : ''}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleBookmark(activeProblem._id)}
+                          className={`p-2 rounded-xl border transition duration-300 ${
+                            (progress?.bookmarks || []).includes(activeProblem._id) || (progress?.bookmarks || []).some(id => id === activeProblem._id || id?._id === activeProblem._id)
+                              ? 'bg-cyan-500/10 border-cyan-500/35 text-cyan-400' 
+                              : 'bg-white/2 border-white/5 text-gray-500 hover:text-white hover:border-white/10'
+                          }`}
+                          title={((progress?.bookmarks || []).includes(activeProblem._id) || (progress?.bookmarks || []).some(id => id === activeProblem._id || id?._id === activeProblem._id)) ? "Remove Bookmark" : "Bookmark Question"}
+                        >
+                          <Bookmark className={`w-4 h-4 ${((progress?.bookmarks || []).includes(activeProblem._id) || (progress?.bookmarks || []).some(id => id === activeProblem._id || id?._id === activeProblem._id)) ? 'fill-cyan-400' : ''}`} />
+                        </button>
+                      </div>
                     </div>
 
                     <p className="text-xs text-gray-300 leading-relaxed font-sans bg-black/35 border border-white/5 p-4 rounded-xl whitespace-pre-wrap">
@@ -1353,9 +1450,68 @@ export default function CodingSandbox() {
                       </div>
                     )}
 
-                    {/* Hints Drawer */}
-                    <div className="border-t border-white/5 pt-4 mt-2">
-                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase block mb-3">COACHING HINTS</span>
+                    {/* 4-Level Progressive Hint System */}
+                    <div className="border-t border-white/5 pt-5 mt-3 text-left">
+                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase block mb-3">
+                        Progressive Hint System ({unlockedHintsCount}/4 Unlocked)
+                      </span>
+                      
+                      <div className="flex flex-col gap-2.5 mb-5">
+                        {[0, 1, 2, 3].map((index) => {
+                          const isUnlocked = unlockedHintsCount > index;
+                          const hintText = activeProblem?.hints?.[index] || `Hint ${index + 1} will outline key pointers or base case setup.`;
+                          
+                          let label = `Hint ${index + 1}: Conceptual Clue`;
+                          if (index === 1) label = `Hint 2: Approach & Strategy`;
+                          if (index === 2) label = `Hint 3: Base Case & Logic`;
+                          if (index === 3) label = `Hint 4: Implementation Details`;
+
+                          return (
+                            <div 
+                              key={index}
+                              className={`border rounded-2xl p-4 transition-all duration-300 ${
+                                isUnlocked 
+                                  ? 'bg-cyber-neon/5 border-cyber-neon/20 text-gray-300' 
+                                  : 'bg-black/20 border-white/5 text-gray-500'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center mb-1.5">
+                                <span className={`text-[9px] font-black uppercase tracking-wider ${isUnlocked ? 'text-cyan-400' : 'text-gray-500'}`}>
+                                  {label}
+                                </span>
+                                {!isUnlocked && index === unlockedHintsCount && (
+                                  <button
+                                    type="button"
+                                    onClick={unlockNextHint}
+                                    className="text-[9px] font-black uppercase bg-cyber-neon/10 hover:bg-cyber-neon/20 border border-cyber-neon/30 text-cyber-neon px-3 py-1.5 rounded-xl transition duration-300 flex items-center gap-1"
+                                  >
+                                    <Unlock className="w-3 h-3 text-cyan-400" />
+                                    Unlock Clue
+                                  </button>
+                                )}
+                                {!isUnlocked && index > unlockedHintsCount && (
+                                  <div className="text-[9px] font-black uppercase text-gray-600 flex items-center gap-1">
+                                    <Lock className="w-3 h-3" />
+                                    Locked
+                                  </div>
+                                )}
+                              </div>
+                              
+                              {isUnlocked ? (
+                                <p className="text-xs font-mono leading-relaxed text-left whitespace-pre-wrap">{hintText}</p>
+                              ) : (
+                                <p className="text-xs italic select-none text-gray-600 text-left">Unlock hint {index} to access this level.</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Premium AI Coach Hints Drawer */}
+                      <span className="text-[10px] font-black text-purple-400 tracking-wider uppercase block mb-3 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                        AI Coach Solver Hints
+                      </span>
 
                       {isPremiumUser ? (
                         <div className="flex flex-col gap-3">
@@ -1369,10 +1525,10 @@ export default function CodingSandbox() {
                                 }}
                                 disabled={aiLoading}
                                 className={`
-                                  flex-1 text-[9px] font-black uppercase tracking-wider py-2 rounded-xl border transition
+                                  flex-1 text-[9px] font-black uppercase tracking-wider py-2.5 rounded-xl border transition
                                   ${selectedHintType === type 
-                                    ? 'bg-cyber-neon/10 border-cyber-neon/40 text-white' 
-                                    : 'bg-white/2 border-white/5 text-gray-400 hover:text-white'
+                                    ? 'bg-purple-500/10 border-purple-500/40 text-white' 
+                                    : 'bg-white/2 border-white/5 text-gray-400 hover:text-white hover:border-white/10'
                                   }
                                 `}
                               >
@@ -1382,13 +1538,31 @@ export default function CodingSandbox() {
                           </div>
 
                           {aiLoading && (
-                            <div className="flex justify-center p-4">
-                              <Loader2 className="w-6 h-6 text-cyber-neon animate-spin" />
+                            <div className="flex flex-col gap-2 p-4 bg-white/2 border border-white/5 rounded-xl animate-pulse">
+                              <div className="h-4 bg-white/10 rounded w-3/4"></div>
+                              <div className="h-4 bg-white/10 rounded w-5/6"></div>
+                              <div className="h-4 bg-white/10 rounded w-2/3"></div>
+                            </div>
+                          )}
+
+                          {aiError && (
+                            <div className="flex flex-col gap-3 bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-xs text-red-400 text-left">
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-red-500 animate-pulse" />
+                                <span className="font-bold">AI Throttling / Request Failure: {aiError}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => getAIHint(selectedHintType)}
+                                className="bg-red-500/20 hover:bg-red-500/35 border border-red-500/30 text-white font-bold px-3 py-1.5 rounded-lg w-fit transition text-[10px] uppercase tracking-wider"
+                              >
+                                Retry Generating Hint
+                              </button>
                             </div>
                           )}
 
                           {typedHint && (
-                            <div className="bg-cyber-neon/5 border border-cyber-neon/20 p-4 rounded-xl text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap animate-fadeIn relative">
+                            <div className="bg-cyber-neon/5 border border-cyber-neon/20 p-4 rounded-xl text-xs text-gray-300 font-mono leading-relaxed whitespace-pre-wrap animate-fadeIn relative text-left">
                               <Sparkles className="w-3.5 h-3.5 text-cyan-400 absolute top-3 right-3 animate-pulse" />
                               {typedHint}
                             </div>
@@ -1400,8 +1574,8 @@ export default function CodingSandbox() {
                           className="bg-black/40 border border-white/5 p-5 rounded-2xl text-center flex flex-col items-center gap-2 cursor-pointer group hover:border-cyber-accent/30 transition duration-300"
                         >
                           <Lock className="w-6 h-6 text-cyber-accent animate-bounce" />
-                          <span className="text-xs font-bold text-white group-hover:text-cyber-accent transition">Unlock step-by-step AI hints</span>
-                          <p className="text-[9px] text-gray-600">Upgrade to premium to receive active complexity and edge-case code solutions.</p>
+                          <span className="text-xs font-bold text-white group-hover:text-cyber-accent transition">Unlock Active Code Hints</span>
+                          <p className="text-[9px] text-gray-600">Upgrade to premium to generate active code blocks and edge-case testing solutions.</p>
                         </div>
                       )}
                     </div>
@@ -1541,6 +1715,31 @@ export default function CodingSandbox() {
                             Recruiter is typing follow-ups...
                           </div>
                         )}
+
+                        {aiError && (
+                          <div className="flex flex-col gap-3 bg-red-500/10 border border-red-500/20 p-4 rounded-xl text-xs text-red-400 text-left my-2 animate-fadeIn">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-red-500 animate-pulse" />
+                              <span className="font-bold">AI Recruiter Request Failure: {aiError}</span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={getAICodeReview}
+                                className="bg-purple-500/20 hover:bg-purple-500/35 border border-purple-500/30 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] uppercase tracking-wider"
+                              >
+                                Retry Code Review
+                              </button>
+                              <button
+                                type="button"
+                                onClick={getAISolutionExplanation}
+                                className="bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-500/30 text-white font-bold px-3 py-1.5 rounded-lg transition text-[10px] uppercase tracking-wider"
+                              >
+                                Retry Explanation
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                       
                       <form 
@@ -1627,12 +1826,39 @@ export default function CodingSandbox() {
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* 3. PREMIUM ANALYTICS TAB */}
+                )}                {/* 3. PREMIUM ANALYTICS TAB */}
                 {activeLeftTab === 'analytics' && (
-                  <div className="flex flex-col gap-4 animate-fadeIn">
-                    <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase block">Coding Analytics cockpit</span>
+                  <div className="flex flex-col gap-4 animate-fadeIn text-left">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase">Coding Analytics Dashboard</span>
+                    </div>
+
+                    {/* Resume Last Session Button */}
+                    {progress?.lastSession?.problemId && (
+                      <div className="glass-panel p-4.5 rounded-2xl border border-white/5 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 flex flex-col sm:flex-row justify-between items-center gap-3 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full filter blur-xl animate-pulse"></div>
+                        <div className="text-left">
+                          <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest block">Session Continuity</span>
+                          <h4 className="text-xs font-black text-white">Resume Last Practice Session</h4>
+                          <span className="text-[9px] text-gray-400 font-bold block mt-0.5">
+                            Problem: {progress.lastSession.problemId.title || 'Untitled'} ({progress.lastSession.language || 'javascript'})
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (resumeLastSession()) {
+                              setActiveLeftTab('description');
+                            } else {
+                              alert("Could not load last session.");
+                            }
+                          }}
+                          className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-[10px] font-black py-2 px-5 rounded-xl transition duration-300 uppercase tracking-wider shrink-0"
+                        >
+                          Resume Practice
+                        </button>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Readiness Score */}
@@ -1668,7 +1894,6 @@ export default function CodingSandbox() {
                       
                       <div className="flex flex-col gap-3.5">
                         {['Arrays', 'Strings', 'Linked List', 'Stack', 'Graphs', 'Dynamic Programming'].map((topic) => {
-                          // Get topic mastery from map
                           const mastery = progress?.topicMastery?.[topic] || progress?.topicMastery?.get?.(topic) || Math.floor(Math.random() * 40) + 30;
                           return (
                             <div key={topic} className="flex flex-col gap-1 text-left">
@@ -1687,37 +1912,250 @@ export default function CodingSandbox() {
                         })}
                       </div>
                     </div>
+
+                    {/* Weekly Goals */}
+                    <div className="bg-black/35 border border-white/5 p-5 rounded-2xl">
+                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase block mb-3">Weekly Progress Goals</span>
+                      <div className="flex flex-col gap-4">
+                        {/* Goal 1: Problems Solved */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                            <span>Problems Solved Goal</span>
+                            <span>{progress?.weeklyGoals?.solvedCurrent || 0} / {progress?.weeklyGoals?.solvedGoal || 10}</span>
+                          </div>
+                          <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                            <div 
+                              className="bg-gradient-to-r from-emerald-500 to-cyber-jade h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(((progress?.weeklyGoals?.solvedCurrent || 0) / (progress?.weeklyGoals?.solvedGoal || 10)) * 100, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* Goal 2: Graph Problems */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                            <span>Graph Problems Goal</span>
+                            <span>{progress?.weeklyGoals?.graphCurrent || 0} / {progress?.weeklyGoals?.graphGoal || 3}</span>
+                          </div>
+                          <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                            <div 
+                              className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(((progress?.weeklyGoals?.graphCurrent || 0) / (progress?.weeklyGoals?.graphGoal || 3)) * 100, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* Goal 3: Solving Accuracy */}
+                        <div className="flex flex-col gap-1">
+                          <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                            <span>Solving Accuracy Goal</span>
+                            <span>{progress?.accuracy || 0}% / {progress?.weeklyGoals?.accuracyGoal || 80}%</span>
+                          </div>
+                          <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5">
+                            <div 
+                              className="bg-gradient-to-r from-amber-500 to-yellow-500 h-full rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(((progress?.accuracy || 0) / (progress?.weeklyGoals?.accuracyGoal || 80)) * 100, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Achievements Badge Grid */}
+                    <div className="bg-black/35 border border-white/5 p-5 rounded-2xl">
+                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase block mb-3">Achievements & Badges</span>
+                      {progress?.achievements?.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {progress.achievements.map((ach) => (
+                            <div 
+                              key={ach.id} 
+                              className={`p-3 rounded-xl border flex gap-3 items-center relative overflow-hidden transition-all duration-300 ${
+                                ach.unlocked 
+                                  ? 'bg-amber-500/5 border-amber-500/20 text-white' 
+                                  : 'bg-black/20 border-white/5 opacity-60'
+                              }`}
+                            >
+                              {ach.unlocked && (
+                                <div className="absolute top-0 right-0 w-16 h-16 bg-amber-500/5 rounded-full filter blur-md"></div>
+                              )}
+                              <div className="text-2xl shrink-0 select-none">
+                                {ach.badge || '🏆'}
+                              </div>
+                              <div className="flex-1 min-w-0 text-left">
+                                <div className="flex justify-between items-baseline gap-1">
+                                  <h5 className="text-xs font-black truncate">{ach.name}</h5>
+                                  <span className="text-[8px] font-mono text-gray-500">{ach.unlocked ? 'Unlocked' : `${ach.progress || 0}%`}</span>
+                                </div>
+                                <p className="text-[10px] text-gray-400 truncate mt-0.5">{ach.description}</p>
+                                
+                                {!ach.unlocked && (
+                                  <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden border border-white/5 mt-1.5">
+                                    <div 
+                                      className="bg-gray-500 h-full rounded-full transition-all duration-300"
+                                      style={{ width: `${ach.progress || 0}%` }}
+                                    ></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-500 font-semibold italic text-left block">No achievements unlocked yet.</span>
+                      )}
+                    </div>
+
+                    {/* Recently Viewed */}
+                    <div className="bg-black/35 border border-white/5 p-5 rounded-2xl">
+                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase block mb-3">Recently Viewed</span>
+                      {progress?.recentlyViewed?.length > 0 ? (
+                        <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                          {progress.recentlyViewed.map((item, idx) => {
+                            const prob = item.problemId;
+                            if (!prob) return null;
+                            return (
+                              <div 
+                                key={idx} 
+                                onClick={() => selectProblem(prob)}
+                                className="bg-white/2 hover:bg-white/5 border border-white/5 p-3 rounded-xl flex items-center justify-between cursor-pointer transition text-left"
+                              >
+                                <div className="text-left">
+                                  <h5 className="text-xs font-bold text-white">{prob.title}</h5>
+                                  <span className="text-[9px] text-gray-500 font-extrabold uppercase mt-0.5 block">{prob.category} • {prob.difficulty}</span>
+                                </div>
+                                <span className="text-[9px] text-gray-500 font-mono">{new Date(item.viewedAt).toLocaleDateString()}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-500 font-semibold italic text-left block">No recently viewed questions.</span>
+                      )}
+                    </div>
+
+                    {/* AI Recommended Coding Practice */}
+                    <div className="bg-black/35 border border-white/5 p-5 rounded-2xl">
+                      <span className="text-[10px] font-black text-purple-400 tracking-wider uppercase block mb-3 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                        AI Coding Recommendations
+                      </span>
+                      {progress?.recommendations?.length > 0 ? (
+                        <div className="flex flex-col gap-2.5">
+                          {progress.recommendations.map((rec, idx) => (
+                            <div 
+                              key={idx}
+                              onClick={() => selectProblem(rec.problemId)}
+                              className="bg-gradient-to-r from-purple-950/20 to-[#0d1425]/40 border border-purple-500/15 hover:border-purple-500/30 p-3.5 rounded-xl flex items-center justify-between cursor-pointer transition relative overflow-hidden"
+                            >
+                              <div className="text-left">
+                                <h5 className="text-xs font-extrabold text-white">{rec.problemId?.title || rec.title}</h5>
+                                <span className="text-[9px] text-gray-500 font-black uppercase tracking-wider mt-0.5 block">
+                                  {rec.problemId?.category || rec.category} • {rec.problemId?.difficulty || rec.difficulty}
+                                </span>
+                                <span className="text-[9px] text-purple-300 font-medium leading-tight mt-1.5 block max-w-[90%]">
+                                  💡 {rec.reason || 'Recommended based on your recent activity.'}
+                                </span>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-purple-400 shrink-0" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-500 font-semibold italic text-left block">
+                          Complete more questions to unlock resume and accuracy-driven recommendations.
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
 
                 {/* 4. SUBMISSIONS HISTORY TAB */}
                 {activeLeftTab === 'submissions' && (
-                  <div className="flex flex-col gap-3 animate-fadeIn">
-                    <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase">Submission History Log</span>
+                  <div className="flex flex-col gap-3 animate-fadeIn text-left">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-gray-500 tracking-wider uppercase">Submission History Log</span>
+                    </div>
+                    
+                    {/* Submissions Search & Filter */}
+                    <div className="flex flex-col sm:flex-row gap-2 bg-black/20 p-3 rounded-2xl border border-white/5">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="Search by problem title..."
+                          value={submissionSearch}
+                          onChange={(e) => setSubmissionSearch(e.target.value)}
+                          className="w-full bg-[#030303] border border-white/10 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-cyber-accent/50 focus:ring-1 focus:ring-cyber-accent/20 pl-8 transition-all"
+                        />
+                        <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-2.5" />
+                      </div>
+                      <select
+                        value={submissionStatusFilter}
+                        onChange={(e) => setSubmissionStatusFilter(e.target.value)}
+                        className="bg-[#030303] border border-white/10 rounded-xl py-2 px-2 text-xs font-semibold text-gray-300 outline-none cursor-pointer focus:border-cyber-accent/50 transition"
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="Accepted">Accepted</option>
+                        <option value="Wrong Answer">Wrong Answer</option>
+                        <option value="Runtime Error">Runtime Error</option>
+                        <option value="Time Limit Exceeded">Time Limit Exceeded</option>
+                        <option value="Memory Limit Exceeded">Memory Limit Exceeded</option>
+                      </select>
+                    </div>
+
                     {submissions.length === 0 ? (
                       <div className="bg-[#030303] p-8 rounded-xl border border-white/5 text-center text-xs text-gray-500 font-bold">
                         No submissions recorded. Type code and submit solution!
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto custom-scrollbar">
-                        {submissions.map((sub, i) => (
-                          <div key={i} className="bg-white/2 border border-white/5 p-3.5 rounded-xl flex items-center justify-between">
-                            <div className="text-left">
-                              <h5 className="text-xs font-bold text-white">{sub.problemId?.title || 'Coding Challenge'}</h5>
-                              <span className="text-[9px] text-gray-500 font-mono uppercase font-bold">{sub.language} • {new Date(sub.createdAt).toLocaleDateString()}</span>
+                      (() => {
+                        const filteredSubmissions = submissions.filter(sub => {
+                          const problemTitle = (sub.problemId?.title || 'Coding Challenge').toLowerCase();
+                          const matchesSearch = problemTitle.includes(submissionSearch.toLowerCase());
+                          const matchesStatus = !submissionStatusFilter || sub.status === submissionStatusFilter;
+                          return matchesSearch && matchesStatus;
+                        });
+
+                        if (filteredSubmissions.length === 0) {
+                          return (
+                            <div className="bg-[#030303] p-8 rounded-xl border border-white/5 text-center text-xs text-gray-500 font-bold">
+                              No matching submissions found.
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-gray-400 font-mono font-bold">{sub.runtime}ms / {sub.memory}MB</span>
-                              <span className={`
-                                text-[9px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider
-                                ${sub.status === 'Accepted' ? 'bg-cyber-jade/10 text-cyber-jade' : 'bg-red-500/10 text-red-400'}
-                              `}>
-                                {sub.status}
-                              </span>
-                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="flex flex-col gap-2.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                            {filteredSubmissions.map((sub, i) => (
+                              <div key={i} className="bg-white/2 border border-white/5 p-3.5 rounded-xl flex items-center justify-between">
+                                <div className="text-left">
+                                  <h5 className="text-xs font-bold text-white">{sub.problemId?.title || 'Coding Challenge'}</h5>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[9px] text-gray-500 font-mono uppercase font-bold">
+                                      {sub.language}
+                                    </span>
+                                    <span className="text-gray-600 text-[9px]">•</span>
+                                    <span className="text-[9px] text-gray-500 font-mono font-bold">
+                                      {new Date(sub.createdAt).toLocaleDateString()} {new Date(sub.createdAt).toLocaleTimeString(undefined, {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="text-right">
+                                    <span className="text-[10px] text-gray-400 font-mono font-bold block">{sub.runtime}ms</span>
+                                    <span className="text-[9px] text-gray-500 font-mono block">{sub.memory}MB</span>
+                                  </div>
+                                  <span className={`
+                                    text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider
+                                    ${sub.status === 'Accepted' ? 'bg-cyber-jade/10 text-cyber-jade border border-cyber-jade/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}
+                                  `}>
+                                    {sub.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()
                     )}
                   </div>
                 )}
@@ -2169,23 +2607,45 @@ export default function CodingSandbox() {
                         </div>
 
                         {evaluation.status === 'Accepted' ? (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="bg-cyber-jade/5 border border-cyber-jade/20 p-3.5 rounded-2xl text-center">
-                              <span className="text-[9px] font-bold text-gray-500 uppercase block mb-1">EXECUTION SPEED</span>
-                              <span className="text-lg font-black text-cyber-jade font-mono">{evaluation.runtime} ms</span>
-                              <span className="text-[9px] text-gray-500 block font-bold mt-1">Faster than 92%</span>
+                          <div className="flex flex-col gap-3 relative overflow-hidden">
+                            {/* Visual success micro-particle pop effects */}
+                            <div className="absolute inset-0 pointer-events-none flex justify-center items-center">
+                              {[...Array(12)].map((_, i) => (
+                                <span
+                                  key={i}
+                                  className="absolute w-2 h-2 bg-cyber-jade rounded-full animate-ping opacity-75"
+                                  style={{
+                                    transform: `rotate(${i * 30}deg) translateY(-40px)`,
+                                    animationDelay: `${i * 0.05}s`,
+                                    animationDuration: '1.2s'
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 bg-cyber-jade/10 border border-cyber-jade/20 px-4 py-2.5 rounded-xl text-xs text-cyber-jade mb-1 font-bold animate-bounce">
+                              <Sparkles className="w-4.5 h-4.5 text-cyber-jade animate-spin shrink-0" />
+                              <span>Congratulations! All assertions passed successfully!</span>
                             </div>
 
-                            <div className="bg-cyber-neon/5 border border-cyber-neon/20 p-3.5 rounded-2xl text-center">
-                              <span className="text-[9px] font-bold text-gray-500 uppercase block mb-1">MEMORY FOOTPRINT</span>
-                              <span className="text-lg font-black text-cyber-neon font-mono">{evaluation.memory} MB</span>
-                              <span className="text-[9px] text-gray-500 block font-bold mt-1">Less than 96%</span>
-                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+                              <div className="bg-cyber-jade/5 border border-cyber-jade/20 p-3.5 rounded-2xl text-center">
+                                <span className="text-[9px] font-bold text-gray-500 uppercase block mb-1">EXECUTION SPEED</span>
+                                <span className="text-lg font-black text-cyber-jade font-mono">{evaluation.runtime} ms</span>
+                                <span className="text-[9px] text-gray-500 block font-bold mt-1">Faster than 92%</span>
+                              </div>
 
-                            <div className="bg-yellow-500/5 border border-yellow-500/20 p-3.5 rounded-2xl text-center">
-                              <span className="text-[9px] font-bold text-gray-500 uppercase block mb-1">REWARDS EARNED</span>
-                              <span className="text-lg font-black text-yellow-400 font-mono">+{evaluation.xpAwarded} XP</span>
-                              <span className="text-[9px] text-yellow-500 block font-bold mt-1">Lv. {evaluation.level} • Streak +{evaluation.streak}</span>
+                              <div className="bg-cyber-neon/5 border border-cyber-neon/20 p-3.5 rounded-2xl text-center">
+                                <span className="text-[9px] font-bold text-gray-500 uppercase block mb-1">MEMORY FOOTPRINT</span>
+                                <span className="text-lg font-black text-cyber-neon font-mono">{evaluation.memory} MB</span>
+                                <span className="text-[9px] text-gray-500 block font-bold mt-1">Less than 96%</span>
+                              </div>
+
+                              <div className="bg-yellow-500/5 border border-yellow-500/20 p-3.5 rounded-2xl text-center">
+                                <span className="text-[9px] font-bold text-gray-500 uppercase block mb-1">REWARDS EARNED</span>
+                                <span className="text-lg font-black text-yellow-400 font-mono">+{evaluation.xpAwarded} XP</span>
+                                <span className="text-[9px] text-yellow-500 block font-bold mt-1">Lv. {evaluation.level} • Streak +{evaluation.streak}</span>
+                              </div>
                             </div>
                           </div>
                         ) : (

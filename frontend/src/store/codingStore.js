@@ -8,7 +8,7 @@ export const useCodingStore = create((set, get) => ({
   activeProblem: null,
   activeLanguage: 'javascript',
   editorCode: '',
-  evaluation: null, // this will hold the response details: status, runtime, memory, passed etc.
+  evaluation: null,
   loading: false,
   error: null,
 
@@ -25,6 +25,10 @@ export const useCodingStore = create((set, get) => ({
   aiFollowup: null,
   aiLoading: false,
   aiError: null,
+  
+  // Daily challenge and progressive hints
+  dailyChallenge: null,
+  unlockedHintsCount: 0,
 
   // Recruiter Chat Dialogue Stack
   recruiterMessages: [],
@@ -60,7 +64,6 @@ export const useCodingStore = create((set, get) => ({
       const response = await axios.get(`${API_URL}/coding/problems`, { params });
       set({ problems: response.data, loading: false });
       
-      // Default to first problem if none is active or active is not in new search
       if (response.data.length > 0) {
         const currentActive = get().activeProblem;
         const exists = response.data.some(p => p._id === currentActive?._id);
@@ -78,11 +81,14 @@ export const useCodingStore = create((set, get) => ({
     }
   },
 
-  selectProblem: (problem) => {
+  selectProblem: async (problem) => {
+    if (!problem) return;
     const lang = get().activeLanguage;
+    const code = (problem?.starterTemplates && problem.starterTemplates[lang]) || '';
+    
     set({
       activeProblem: problem,
-      editorCode: (problem?.starterTemplates && problem.starterTemplates[lang]) || '',
+      editorCode: code,
       evaluation: null,
       error: null,
       aiHint: null,
@@ -90,23 +96,45 @@ export const useCodingStore = create((set, get) => ({
       aiExplanation: null,
       aiFollowup: null,
       aiError: null,
-      recruiterMessages: problem ? [
+      unlockedHintsCount: 0,
+      recruiterMessages: [
         {
           sender: 'recruiter',
           text: `Hello! I am your AI Recruiter. I see you are working on "${problem.title}". Let's discuss your implementation details. Once you submit a successful solution, we'll talk about your design decisions, Big-O complexities, and optimizations!`
         }
-      ] : []
+      ]
     });
+
+    try {
+      await axios.post(`${API_URL}/coding/session`, {
+        problemId: problem._id,
+        language: lang,
+        code
+      });
+      get().fetchProgress();
+    } catch (err) {
+      console.error('Failed to auto-save session:', err);
+    }
   },
 
-  setLanguage: (lang) => {
+  setLanguage: async (lang) => {
     const { activeProblem } = get();
     if (!activeProblem) return;
+    const code = (activeProblem?.starterTemplates && activeProblem.starterTemplates[lang]) || '';
+    
     set({
       activeLanguage: lang,
-      editorCode: (activeProblem?.starterTemplates && activeProblem.starterTemplates[lang]) || '',
+      editorCode: code,
       evaluation: null
     });
+
+    try {
+      await axios.post(`${API_URL}/coding/session`, {
+        problemId: activeProblem._id,
+        language: lang,
+        code
+      });
+    } catch (err) {}
   },
 
   setEditorCode: (code) => {
@@ -131,7 +159,6 @@ export const useCodingStore = create((set, get) => ({
         set({ evaluation: response.data, loading: false });
         get().fetchProgress();
 
-        // Auto-trigger Recruiter followup dialogue after successful Accept
         if (response.data.status === 'Accepted') {
           try {
             const followResponse = await axios.post(`${API_URL}/coding/coach/followup`, {
@@ -157,6 +184,16 @@ export const useCodingStore = create((set, get) => ({
       } else {
         set({ loading: false });
       }
+
+      // Sync the code state to DB session
+      try {
+        await axios.post(`${API_URL}/coding/session`, {
+          problemId: activeProblem._id,
+          language: activeLanguage,
+          code: editorCode
+        });
+      } catch (err) {}
+
       return response.data;
     } catch (error) {
       const errMsg = error.response?.data?.message || 'Failed to evaluate solution.';
@@ -172,16 +209,25 @@ export const useCodingStore = create((set, get) => ({
     try {
       await axios.post(`${API_URL}/coding/problems/${problemId}/action`, { action: 'skip' });
       await get().fetchProgress();
-      // Automatically advance to the next question under filters
       await get().nextProblem(search, category, difficulty, company);
     } catch (error) {
       console.error('Failed to skip problem:', error);
     }
   },
 
-  // Practice Navigation Operations
   nextProblem: async (search = '', category = '', difficulty = '', company = '') => {
-    const { activeProblem } = get();
+    const { problems, activeProblem } = get();
+    if (problems.length > 0 && activeProblem) {
+      const idx = problems.findIndex(p => p._id === activeProblem._id);
+      if (idx !== -1 && idx < problems.length - 1) {
+        set((state) => ({
+          prevProblems: [...state.prevProblems, activeProblem]
+        }));
+        get().selectProblem(problems[idx + 1]);
+        return;
+      }
+    }
+    
     if (activeProblem) {
       set((state) => ({
         prevProblems: [...state.prevProblems, activeProblem]
@@ -205,7 +251,8 @@ export const useCodingStore = create((set, get) => ({
       aiHint: null,
       aiReview: null,
       aiExplanation: null,
-      aiFollowup: null
+      aiFollowup: null,
+      unlockedHintsCount: 0
     });
   },
 
@@ -230,7 +277,6 @@ export const useCodingStore = create((set, get) => ({
     await get().generateAIProblem(targetTopic, targetCompany, targetDifficulty);
   },
 
-  // Premium progression & Leaderboard Actions
   fetchLeaderboard: async () => {
     try {
       const response = await axios.get(`${API_URL}/coding/leaderboard`);
@@ -244,7 +290,10 @@ export const useCodingStore = create((set, get) => ({
     try {
       const response = await axios.get(`${API_URL}/coding/progress`);
       set({ 
-        progress: response.data.progress,
+        progress: {
+          ...response.data.progress,
+          recommendations: response.data.recommendations
+        },
         submissions: response.data.submissions 
       });
     } catch (error) {
@@ -252,7 +301,6 @@ export const useCodingStore = create((set, get) => ({
     }
   },
 
-  // Dynamic AI Problem Generator
   generateAIProblem: async (topic, targetCompany, difficulty) => {
     set({ aiLoading: true, aiError: null });
     try {
@@ -278,7 +326,6 @@ export const useCodingStore = create((set, get) => ({
     }
   },
 
-  // Recruiter Dialogue Message Handlers
   sendRecruiterMessage: async (userMessage) => {
     const { activeProblem, editorCode, activeLanguage, recruiterMessages } = get();
     if (!activeProblem) return;
@@ -314,7 +361,7 @@ export const useCodingStore = create((set, get) => ({
       
       const fallbackMsg = {
         sender: 'recruiter',
-        text: "That makes sense. If we look closer at Big-O space complexity, what are the primary scaling hurdles of this structure?"
+        text: "That makes sense. If we look closer at Big-O space complexity, what are the primary hurdles of this structure?"
       };
       set((state) => ({
         recruiterMessages: [...state.recruiterMessages, fallbackMsg]
@@ -334,7 +381,6 @@ export const useCodingStore = create((set, get) => ({
     });
   },
 
-  // Guided Path Calculators
   getPathProgress: (pathKey) => {
     const { progress, pathsData } = get();
     const pathConfig = pathsData[pathKey];
@@ -344,10 +390,6 @@ export const useCodingStore = create((set, get) => ({
     let totalMastery = 0;
     pathConfig.topics.forEach(topic => {
       let topicKey = topic;
-      // Map Stack / Queue singular/plural cases
-      if (topic === "Stack") topicKey = "Stack";
-      else if (topic === "Queue") topicKey = "Queue";
-      
       const mastery = progress.topicMastery[topicKey] || 0;
       totalMastery += mastery;
     });
@@ -365,7 +407,6 @@ export const useCodingStore = create((set, get) => ({
     };
   },
 
-  // Premium AI Coach Actions
   getAIHint: async (hintType) => {
     const { activeProblem, editorCode, activeLanguage } = get();
     if (!activeProblem) return;
@@ -441,5 +482,66 @@ export const useCodingStore = create((set, get) => ({
       set({ aiError: errMsg, aiLoading: false });
       throw new Error(errMsg);
     }
+  },
+
+  toggleBookmark: async (problemId) => {
+    try {
+      const response = await axios.post(`${API_URL}/coding/problems/${problemId}/bookmark`);
+      await get().fetchProgress();
+      return response.data.bookmarked;
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
+    }
+  },
+
+  toggleFavorite: async (problemId) => {
+    try {
+      const response = await axios.post(`${API_URL}/coding/problems/${problemId}/favorite`);
+      await get().fetchProgress();
+      return response.data.favorite;
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    }
+  },
+
+  fetchDailyChallenge: async () => {
+    try {
+      const response = await axios.get(`${API_URL}/coding/daily-challenge`);
+      set({ dailyChallenge: response.data });
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch daily challenge:', error);
+    }
+  },
+
+  unlockNextHint: async () => {
+    const current = get().unlockedHintsCount;
+    if (current < 4) {
+      set({ unlockedHintsCount: current + 1 });
+      const activeProb = get().activeProblem;
+      if (activeProb) {
+        try {
+          await axios.post(`${API_URL}/coding/problems/${activeProb._id}/action`, { action: 'ask' });
+          get().fetchProgress();
+        } catch (e) {}
+      }
+    }
+  },
+
+  resumeLastSession: () => {
+    const lastSession = get().progress?.lastSession;
+    if (lastSession && lastSession.problemId) {
+      const problem = lastSession.problemId;
+      set({
+        activeProblem: problem,
+        activeLanguage: lastSession.language || 'javascript',
+        editorCode: lastSession.code || '',
+        evaluation: null,
+        error: null,
+        unlockedHintsCount: 0
+      });
+      return true;
+    }
+    return false;
   }
 }));

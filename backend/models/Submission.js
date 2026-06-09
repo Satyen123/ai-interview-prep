@@ -45,6 +45,29 @@ const submissionSchema = new mongoose.Schema({
   errorMessage: {
     type: String,
     default: ''
+  },
+  problemTitle: {
+    type: String,
+    default: ''
+  },
+  category: {
+    type: String,
+    default: ''
+  },
+  difficulty: {
+    type: String,
+    default: ''
+  },
+  companyTags: [{
+    type: String
+  }],
+  passedCases: {
+    type: Number,
+    default: 0
+  },
+  failedCases: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 

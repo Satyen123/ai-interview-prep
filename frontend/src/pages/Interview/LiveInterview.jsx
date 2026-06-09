@@ -23,7 +23,10 @@ import {
   Award,
   LogOut,
   Infinity,
-  Activity
+  Activity,
+  Download,
+  Copy,
+  Check
 } from 'lucide-react';
 import PageWrapper from '../../components/layout/PageWrapper';
 
@@ -179,7 +182,8 @@ export default function LiveInterview() {
     error, 
     successSynthesis, 
     resumeSession, 
-    endSessionImmediately 
+    endSessionImmediately,
+    resetStore
   } = useInterviewStore();
   
   const navigate = useNavigate();
@@ -190,10 +194,70 @@ export default function LiveInterview() {
   const [ttsReading, setTtsReading] = useState(false);
   const [micError, setMicError] = useState('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const recognitionRef = useRef(null);
   const timerRef = useRef(null);
   const timelineEndRef = useRef(null);
+
+  // Markdown Export Report Helper
+  const generateMarkdownReport = (synthesis) => {
+    if (!synthesis) return '';
+    let md = `# AI Interview Evaluation Report\n\n`;
+    md += `**Role:** ${synthesis.jobRole}\n`;
+    md += `**Difficulty:** ${synthesis.difficulty}\n`;
+    md += `**Type:** ${synthesis.interviewType}\n`;
+    md += `**Overall Score:** ${synthesis.overallScore} / 10\n\n`;
+    
+    md += `## Evaluation Summary\n\n`;
+    md += `### Communication & Clarity\n${synthesis.evaluationSummary?.communication || 'N/A'}\n\n`;
+    md += `### Technical Accuracy & Depth\n${synthesis.evaluationSummary?.technicalAccuracy || 'N/A'}\n\n`;
+    md += `### Grammar & Phrasings\n${synthesis.evaluationSummary?.grammarSuggestions || 'N/A'}\n\n`;
+    md += `### Behavioral & Strategic Alignment\n${synthesis.evaluationSummary?.behavioralTips || 'N/A'}\n\n`;
+    
+    md += `## Question & Answer Transcripts\n\n`;
+    synthesis.questions.forEach((q, idx) => {
+      md += `### Question ${idx + 1}: ${q.questionText}\n`;
+      md += `**Your Answer:** *${q.userAnswer || 'Skipped'}*\n\n`;
+      md += `**AI Response Critique (Score: ${q.score || 0}/10):**\n${q.feedback || 'N/A'}\n\n`;
+      if (q.strengths && q.strengths.length > 0) {
+        md += `*Key Strengths:*\n`;
+        q.strengths.forEach(str => md += `- ${str}\n`);
+        md += `\n`;
+      }
+      if (q.weaknesses && q.weaknesses.length > 0) {
+        md += `*Areas to Improve:*\n`;
+        q.weaknesses.forEach(wk => md += `- ${wk}\n`);
+        md += `\n`;
+      }
+      if (q.idealAnswer) {
+        md += `**AI High-Impact Ideal Answer:**\n> ${q.idealAnswer}\n\n`;
+      }
+      md += `---\n\n`;
+    });
+    return md;
+  };
+
+  const handleDownloadMarkdown = () => {
+    if (!successSynthesis) return;
+    const mdText = generateMarkdownReport(successSynthesis);
+    const blob = new Blob([mdText], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `interview_report_${successSynthesis.jobRole.replace(/\s+/g, '_')}.md`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCopyMarkdown = () => {
+    if (!successSynthesis) return;
+    const mdText = generateMarkdownReport(successSynthesis);
+    navigator.clipboard.writeText(mdText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   // 1. Session Persistence: Attempt Auto-Resume on Mount
   useEffect(() => {
@@ -380,7 +444,7 @@ export default function LiveInterview() {
     const result = await submitUserAnswer(answerText, timer, false);
     
     if (result === 'completed') {
-      navigate('/analytics');
+      // Stay on page to display synthesis evaluation report details
     } else if (result === 'next') {
       setAnswerText('');
       scrollToBottom();
@@ -404,7 +468,7 @@ export default function LiveInterview() {
     }
 
     if (result === 'completed') {
-      navigate('/analytics');
+      // Stay on page to display synthesis evaluation report details
     }
   };
 
@@ -441,9 +505,141 @@ export default function LiveInterview() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  // RENDER EVALUATION SUMMARY ON SUCCESS SYNTHESIS
+  if (successSynthesis) {
+    return (
+      <PageWrapper>
+        <div className="w-full max-w-none flex flex-col gap-6 pb-20 px-4 md:px-8 xl:px-12 text-left">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/2 border border-white/5 px-6 py-6 rounded-2xl gap-4">
+            <div>
+              <span className="text-xs font-black bg-emerald-500/15 text-emerald-400 px-3 py-1 rounded-full tracking-widest uppercase border border-emerald-500/20">
+                Evaluation Complete
+              </span>
+              <h2 className="text-2xl font-extrabold text-white mt-2">
+                Session Performance Synthesis
+              </h2>
+              <p className="text-xs text-gray-400 mt-1">
+                {successSynthesis.interviewType} • {successSynthesis.jobRole} ({successSynthesis.difficulty})
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col items-center justify-center bg-cyber-accent/15 border border-cyber-accent/25 px-5 py-3 rounded-2xl">
+                <span className="text-[10px] font-black text-cyber-accent uppercase tracking-wider">Overall Score</span>
+                <span className="text-3xl font-black text-white">{successSynthesis.overallScore} <span className="text-xs text-gray-400">/ 10</span></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Metrics Grids */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="glass-panel p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+              <h3 className="font-extrabold text-sm text-cyber-neon uppercase tracking-wider">Communication & Technical Depth</h3>
+              <div className="flex flex-col gap-4">
+                <div className="bg-white/2 p-4 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest block mb-1">Communication Clarity</span>
+                  <p className="text-xs text-gray-300 leading-relaxed">{successSynthesis.evaluationSummary?.communication}</p>
+                </div>
+                <div className="bg-white/2 p-4 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block mb-1">Technical Accuracy</span>
+                  <p className="text-xs text-gray-300 leading-relaxed">{successSynthesis.evaluationSummary?.technicalAccuracy}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+              <h3 className="font-extrabold text-sm text-cyber-neon uppercase tracking-wider">Phrasing Suggestions & Behavioral Alignment</h3>
+              <div className="flex flex-col gap-4">
+                <div className="bg-white/2 p-4 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block mb-1">Grammar & Phrasings</span>
+                  <p className="text-xs text-gray-300 leading-relaxed">{successSynthesis.evaluationSummary?.grammarSuggestions}</p>
+                </div>
+                <div className="bg-white/2 p-4 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block mb-1">Behavioral Tips</span>
+                  <p className="text-xs text-gray-300 leading-relaxed">{successSynthesis.evaluationSummary?.behavioralTips}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Question Breakdown */}
+          <div className="glass-panel p-6 rounded-3xl border border-white/5 flex flex-col gap-4">
+            <h3 className="font-extrabold text-sm text-cyber-neon uppercase tracking-wider border-b border-white/5 pb-3">Detailed Question Breakdown</h3>
+            <div className="flex flex-col gap-4">
+              {successSynthesis.questions.map((q, idx) => (
+                <div key={idx} className="bg-white/2 border border-white/5 p-5 rounded-2xl flex flex-col gap-3">
+                  <div>
+                    <span className="text-[10px] font-black text-purple-400 block uppercase">Question {idx + 1}:</span>
+                    <p className="text-xs text-white font-semibold leading-relaxed mt-0.5">{q.questionText}</p>
+                  </div>
+                  <div className="bg-cyber-darker p-3 rounded-xl border border-white/5">
+                    <span className="text-[10px] font-black text-cyan-400 block uppercase">Your Answer:</span>
+                    <p className="text-xs text-gray-400 italic leading-relaxed mt-0.5">"{q.userAnswer}"</p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10">
+                      <span className="text-[10px] font-black text-emerald-400 uppercase block">AI Recommended Response:</span>
+                      <p className="text-gray-300 mt-1">{q.idealAnswer}</p>
+                    </div>
+                    <div className="bg-white/2 p-3 rounded-xl border border-white/5">
+                      <span className="text-[10px] font-black text-cyber-gold uppercase block">AI Critique (Score: {q.score}/10):</span>
+                      <p className="text-gray-400 mt-1">{q.feedback}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Markdown Export & Navigation Panel */}
+          <div className="bg-cyber-card/65 border border-white/5 backdrop-blur-md p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+            <div className="text-left">
+              <h4 className="font-extrabold text-sm text-white">Save Evaluation Report</h4>
+              <p className="text-xs text-gray-400">Download the complete assessment transcript as formatted Markdown.</p>
+            </div>
+            
+            <div className="flex flex-wrap gap-3 w-full md:w-auto justify-end">
+              <button
+                onClick={handleCopyMarkdown}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-white/2 hover:bg-white/5 border border-white/10 text-white font-bold px-5 py-3 rounded-xl text-xs transition"
+              >
+                {copied ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <Copy className="w-4 h-4 text-gray-400 shrink-0" />}
+                {copied ? 'Copied Markdown!' : 'Copy to Clipboard'}
+              </button>
+              <button
+                onClick={handleDownloadMarkdown}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-cyan-500/10 hover:bg-cyan-500 border border-cyan-500/20 text-cyan-400 hover:text-white font-bold px-5 py-3 rounded-xl text-xs transition"
+              >
+                <Download className="w-4 h-4 shrink-0" />
+                Download Markdown (.md)
+              </button>
+              <button
+                onClick={() => {
+                  resetStore();
+                  navigate('/analytics');
+                }}
+                className="w-full md:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-cyber-accent to-purple-600 text-white font-black px-6 py-3 rounded-xl text-xs transition"
+              >
+                Practice Again
+                <ArrowRight className="w-4 h-4 shrink-0" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </PageWrapper>
+    );
+  }
+
+  // STANDARD MOCK ASSESSMENT SCREEN
+  const totalQuestions = 5;
+  const currentCount = activeInterview.questions.length;
+  const progressPercent = Math.min((currentCount / totalQuestions) * 100, 100);
+  const estRemainingMin = Math.max((totalQuestions - currentCount) * 5, 0);
+
   return (
     <PageWrapper>
-      <div className="max-w-4xl mx-auto flex flex-col gap-6 pb-20">
+      <div className="w-full max-w-none flex flex-col gap-6 pb-20 px-4 md:px-8 xl:px-12">
         
         {/* Cockpit Stats Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/2 border border-white/5 px-6 py-4 rounded-2xl gap-3">
@@ -469,11 +665,31 @@ export default function LiveInterview() {
               Interviewer: {activeInterview.interviewerStyle || 'Friendly'}
             </span>
 
-            {/* Timer clock */}
-            <div className="flex items-center gap-2 text-cyber-gold font-bold text-sm bg-cyber-gold/5 border border-cyber-gold/20 px-3.5 py-1.5 rounded-xl">
+            {/* Remaining Time Badge */}
+            <div className="flex items-center gap-2 text-cyber-gold font-bold text-sm bg-cyber-gold/5 border border-cyber-gold/20 px-3.5 py-1.5 rounded-xl" title="Estimated time to complete remaining questions">
               <Clock className="w-4 h-4 shrink-0 animate-pulse" />
+              <span>Est. Remaining: ~{estRemainingMin}m</span>
+            </div>
+
+            {/* Timer clock */}
+            <div className="flex items-center gap-2 text-white/70 font-bold text-sm bg-white/5 border border-white/10 px-3.5 py-1.5 rounded-xl">
+              <Clock className="w-4 h-4 shrink-0" />
               <span>{formatTimer(timer)}</span>
             </div>
+          </div>
+        </div>
+
+        {/* Elegant Progress bar & indicators */}
+        <div className="flex flex-col gap-2 bg-white/2 border border-white/5 px-6 py-4.5 rounded-2xl text-left">
+          <div className="flex justify-between items-center text-[10px] text-gray-500 font-black uppercase tracking-widest">
+            <span>Progress track</span>
+            <span>Question {currentCount} of {totalQuestions}</span>
+          </div>
+          <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden border border-white/5 relative">
+            <div 
+              className="h-full bg-gradient-to-r from-cyber-accent to-purple-500 rounded-full transition-all duration-500" 
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
         </div>
 

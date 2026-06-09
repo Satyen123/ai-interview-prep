@@ -30,7 +30,8 @@ import {
   Minus,
   ChevronUp,
   ChevronDown,
-  CopyPlus
+  CopyPlus,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -306,6 +307,156 @@ export default function ResumeAnalyzer() {
   const previewA4Ref = useRef(null);
   const [a4Height, setA4Height] = useState(1123);
   const [zoomLevel, setZoomLevel] = useState(null); // null means auto-scale
+
+  // UNDO / REDO & AUTO-SAVE HISTORY MANAGEMENT
+  const [historyStack, setHistoryStack] = useState([]);
+  const [historyPointer, setHistoryPointer] = useState(-1);
+  const [versionHistory, setVersionHistory] = useState([]);
+  
+  const isUndoRedoActionRef = useRef(false);
+  const prevTimerRef = useRef(null);
+
+  // Load version history & check for auto-saved draft on mount
+  useEffect(() => {
+    const savedVersions = localStorage.getItem('resume_versions');
+    if (savedVersions) {
+      try {
+        setVersionHistory(JSON.parse(savedVersions));
+      } catch (e) {
+        console.error('Failed to load version history', e);
+      }
+    }
+    
+    const draft = localStorage.getItem('resume_draft_autosave');
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (parsed && parsed.name) {
+          setEditedResume(parsed);
+          setIsEditing(true);
+        }
+      } catch (e) {
+        console.error('Failed to parse draft', e);
+      }
+    }
+  }, []);
+
+  // Debounced auto-save draft to localStorage (2s)
+  useEffect(() => {
+    if (!editedResume) return;
+    const timer = setTimeout(() => {
+      localStorage.setItem('resume_draft_autosave', JSON.stringify(editedResume));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [editedResume]);
+
+  // Push history snapshot
+  const pushHistory = (state) => {
+    if (!state) return;
+    setHistoryStack(prev => {
+      const sliced = prev.slice(0, historyPointer + 1);
+      if (sliced.length > 0 && JSON.stringify(sliced[sliced.length - 1]) === JSON.stringify(state)) {
+        return prev;
+      }
+      const nextStack = [...sliced, JSON.parse(JSON.stringify(state))].slice(-20);
+      setHistoryPointer(nextStack.length - 1);
+      return nextStack;
+    });
+  };
+
+  // Debounced history tracker
+  const recordHistoryChange = (newState) => {
+    if (!newState) return;
+    if (prevTimerRef.current) clearTimeout(prevTimerRef.current);
+    prevTimerRef.current = setTimeout(() => {
+      pushHistory(newState);
+    }, 800);
+  };
+
+  useEffect(() => {
+    if (!editedResume) return;
+    if (isUndoRedoActionRef.current) {
+      isUndoRedoActionRef.current = false;
+      return;
+    }
+    recordHistoryChange(editedResume);
+  }, [editedResume]);
+
+  const handleUndo = () => {
+    if (historyPointer > 0) {
+      const nextPointer = historyPointer - 1;
+      isUndoRedoActionRef.current = true;
+      setHistoryPointer(nextPointer);
+      setEditedResume(JSON.parse(JSON.stringify(historyStack[nextPointer])));
+    }
+  };
+
+  const handleRedo = () => {
+    if (historyPointer < historyStack.length - 1) {
+      const nextPointer = historyPointer + 1;
+      isUndoRedoActionRef.current = true;
+      setHistoryPointer(nextPointer);
+      setEditedResume(JSON.parse(JSON.stringify(historyStack[nextPointer])));
+    }
+  };
+
+  // Keyboard shortcut listener for Ctrl+Z / Ctrl+Y
+  useEffect(() => {
+    const handleUndoRedoKeys = (e) => {
+      if (e.ctrlKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          handleUndo();
+        } else if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleUndoRedoKeys);
+    return () => window.removeEventListener('keydown', handleUndoRedoKeys);
+  }, [historyStack, historyPointer]);
+
+  // Version Snapshots management
+  const saveVersionSnapshot = (resumeData, label = '') => {
+    if (!resumeData) return;
+    const timestamp = new Date().toLocaleString();
+    const newVersion = {
+      id: generateId(),
+      timestamp,
+      label: label || `Backup - ${timestamp}`,
+      data: JSON.parse(JSON.stringify(resumeData))
+    };
+    setVersionHistory(prev => {
+      const updated = [newVersion, ...prev].slice(0, 5);
+      localStorage.setItem('resume_versions', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const restoreVersionSnapshot = (version) => {
+    if (window.confirm(`Restore this backup from ${version.timestamp}? Your unsaved edits will be overwritten.`)) {
+      setEditedResume(JSON.parse(JSON.stringify(version.data)));
+      setIsEditing(true);
+    }
+  };
+
+  const deleteVersionSnapshot = (versionId, e) => {
+    e.stopPropagation();
+    setVersionHistory(prev => {
+      const updated = prev.filter(v => v.id !== versionId);
+      localStorage.setItem('resume_versions', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleToggleEdit = () => {
+    if (isEditing) {
+      // Transitioning Save & View: create snapshot version
+      saveVersionSnapshot(editedResume);
+    }
+    setIsEditing(!isEditing);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1855,7 +2006,7 @@ ${eduText}
 
   return (
     <PageWrapper>
-      <div className={`mx-auto flex flex-col gap-6 text-left relative transition-all duration-300 w-full ${isEditing ? 'max-w-[1600px] px-4' : 'max-w-6xl'}`}>
+      <div className="mx-auto flex flex-col gap-6 text-left relative transition-all duration-300 w-full px-4 md:px-8 xl:px-12">
         
         
         {/* Modular Subscription system mounted globally at page bottom */}
@@ -3096,6 +3247,44 @@ ${eduText}
                           Export DOCX
                         </button>
                       </div>
+
+                      {/* Version History Drawer Section */}
+                      <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/5">
+                        <span className="text-[10px] font-black text-cyber-neon uppercase tracking-widest text-left block mb-2 flex items-center gap-1.5">
+                          <History className="w-3.5 h-3.5 text-cyber-neon" />
+                          Version History Backups
+                        </span>
+
+                        {versionHistory.length > 0 ? (
+                          <div className="flex flex-col gap-2 max-h-[160px] overflow-y-auto custom-scrollbar">
+                            {versionHistory.map((version) => (
+                              <div 
+                                key={version.id}
+                                onClick={() => restoreVersionSnapshot(version)}
+                                className="p-3 bg-white/2 hover:bg-cyber-accent/5 border border-white/5 hover:border-cyber-accent/30 rounded-xl cursor-pointer transition flex justify-between items-center group text-left"
+                                title="Click to restore this backup snapshot"
+                              >
+                                <div className="flex flex-col gap-0.5 overflow-hidden">
+                                  <span className="text-[10px] text-gray-200 font-bold truncate block">{version.label}</span>
+                                  <span className="text-[8px] text-gray-500 font-mono block">{version.timestamp}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => deleteVersionSnapshot(version.id, e)}
+                                  className="p-1 hover:bg-red-500/10 text-gray-500 hover:text-red-400 rounded transition opacity-0 group-hover:opacity-100 shrink-0"
+                                  title="Delete backup"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[9px] text-gray-600 italic text-left bg-black/20 p-3 rounded-xl border border-white/5">
+                            No version snapshots found. Clicking 'Save & View' creates an automatic version backup.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -3157,8 +3346,32 @@ ${eduText}
                               </button>
                             </div>
 
+                            {isEditing && (
+                              <div className="flex items-center bg-white/5 border border-white/10 rounded-xl px-1.5 py-1 text-xs shrink-0 select-none">
+                                <button
+                                  type="button"
+                                  onClick={handleUndo}
+                                  disabled={historyPointer <= 0}
+                                  className="px-2 py-1 text-gray-400 hover:text-white disabled:opacity-30 transition cursor-pointer text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                  title="Undo last edit (Ctrl+Z)"
+                                >
+                                  ↩️ Undo
+                                </button>
+                                <div className="w-px h-3 bg-white/10 mx-1"></div>
+                                <button
+                                  type="button"
+                                  onClick={handleRedo}
+                                  disabled={historyPointer >= historyStack.length - 1}
+                                  className="px-2 py-1 text-gray-400 hover:text-white disabled:opacity-30 transition cursor-pointer text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                  title="Redo edit (Ctrl+Y)"
+                                >
+                                  Redo ↪️
+                                </button>
+                              </div>
+                            )}
+
                             <button
-                              onClick={() => setIsEditing(!isEditing)}
+                              onClick={handleToggleEdit}
                               className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition duration-300 flex items-center gap-1.5 border uppercase tracking-wider
                                 ${isEditing 
                                   ? 'bg-cyber-jade/10 border-cyber-jade/30 text-cyber-jade hover:bg-cyber-jade/20 shadow-lg shadow-cyber-jade/10' 

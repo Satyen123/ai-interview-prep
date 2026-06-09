@@ -1554,9 +1554,30 @@ export const generateDSASolutionExplanation = async (problemTitle, code, languag
 /**
  * 9. AI Dynamic Problem Generator
  */
-export const generateDSADynamicProblem = async (topic, targetCompany, difficulty, resumeSkills = [], resumeText = '') => {
+export const generateDSADynamicProblem = async (topic, targetCompany, difficulty, resumeSkills = [], resumeText = '', targetRole = 'MERN Stack Developer') => {
   let targetTopic = topic || 'Arrays';
   let targetComp = targetCompany || 'Google';
+
+  // Normalize topic name
+  const normalizationMap = {
+    'hashmaps': 'Hash Maps', 'hash map': 'Hash Maps', 'hash maps': 'Hash Maps',
+    'linkedlist': 'Linked List', 'linked list': 'Linked List',
+    'binary search tree': 'BST', 'bst': 'BST',
+    'priority queue': 'Heap', 'heap': 'Heap', 'heap/priority queue': 'Heap',
+    'dfs': 'DFS', 'bfs': 'BFS',
+    'dynamic programming': 'Dynamic Programming', 'dp': 'Dynamic Programming',
+    'sliding window': 'Sliding Window',
+    'two pointer': 'Two Pointers', 'two pointers': 'Two Pointers',
+    'bit manipulation': 'Bit Manipulation',
+    'segment tree': 'Segment Tree',
+    'union find': 'Union Find', 'unionfind': 'Union Find',
+    'javascript': 'JavaScript', 'node': 'Node.js', 'node.js': 'Node.js',
+    'mongodb': 'MongoDB', 'system design': 'System Design', 'oop': 'OOP'
+  };
+  const normKey = targetTopic.toLowerCase().trim();
+  if (normalizationMap[normKey]) {
+    targetTopic = normalizationMap[normKey];
+  }
 
   // Resume-Aware Mapping logic
   const skillsLower = resumeSkills.map(s => s.toLowerCase());
@@ -1564,11 +1585,14 @@ export const generateDSADynamicProblem = async (topic, targetCompany, difficulty
   const hasMern = skillsLower.some(s => s.includes('react') || s.includes('node') || s.includes('mongodb') || s.includes('express') || s.includes('javascript') || s.includes('typescript') || s.includes('api'));
 
   if (!topic) {
-    if (hasPythonData) {
-      const options = ['Python coding challenge', 'SQL database join and grouping logic', 'Data Analytics profiling calculation'];
+    if (targetRole.includes('Data') || hasPythonData) {
+      const options = ['SQL database join and grouping logic', 'Data Analytics profiling calculation', 'Arrays'];
       targetTopic = options[Math.floor(Math.random() * options.length)];
-    } else if (hasMern) {
-      const options = ['Frontend DOM simulation component', 'Backend Express middleware pipeline', 'REST API pagination query parser'];
+    } else if (targetRole.includes('MERN') || targetRole.includes('Frontend') || hasMern) {
+      const options = ['JavaScript', 'React', 'Node.js', 'MongoDB', 'Strings'];
+      targetTopic = options[Math.floor(Math.random() * options.length)];
+    } else if (targetRole.includes('AI') || targetRole.includes('Machine')) {
+      const options = ['Bit Manipulation', 'Recursion', 'Arrays', 'Heap'];
       targetTopic = options[Math.floor(Math.random() * options.length)];
     }
   }
@@ -1576,6 +1600,22 @@ export const generateDSADynamicProblem = async (topic, targetCompany, difficulty
   const resumeContext = resumeSkills.length > 0 
     ? `Candidate Resume Tech Stack: ${resumeSkills.join(', ')}. Please customize the problem phrasing to relate to this stack.`
     : '';
+
+  const roleContext = `Candidate targeted job role is: "${targetRole}". Focus the coding question, context, description scenario, and templates closely on topics and APIs relevant to this role:
+    - MERN Stack Developer / Frontend Developer: Frontend state updates, DOM-like nested trees or JSON mapping, React Todo filter loops, API pagination, or String parsing.
+    - Data Analyst / Data Scientist: SQL table queries, Pandas-style computations, data cleansing, aggregations, stats/KPI formulas.
+    - AI Engineer / ML Engineer: Gradient steps, matrix tensor adjustments, preprocessing layers, features normalization, or math/array algorithms.
+    - Software Engineer / Backend Developer: Traditional DSA (Graphs, Trees, DP), backend route rate limiting, cache eviction strategies, system logic implementation.`;
+
+  const companyMappingContext = `Target Company is: "${targetComp}". Calibrate the problem patterns to match this company's interview style:
+    - Google: Focus heavily on Graphs, Dynamic Programming (DP), optimization puzzles, and advanced algorithms.
+    - Amazon: Focus on Arrays, Trees, Hash Maps, and practical real-world backend coding.
+    - Meta: Focus on Graphs, extreme performance optimizations, and low latency/memory scalability constraints.
+    - Microsoft: Focus on Object-Oriented programming (OOP) logic, standard data structures, and system thinking.
+    - Netflix: Focus on backend logic, high-throughput scaling, and distributed systems algorithms.
+    - TCS: Focus on basic DSA algorithms, array/string operations, and aptitude-oriented coding.
+    - Infosys: Focus on foundational programming constructs, logic building, and array loops.
+    - Coal India: Focus on programming fundamentals, basic problem solving, and technical reasoning.`;
 
   if (!aiEngine) {
     return getDynamicMockDSAProblem(targetTopic, targetComp, difficulty);
@@ -1586,13 +1626,15 @@ export const generateDSADynamicProblem = async (topic, targetCompany, difficulty
     Generate a unique, highly realistic "${difficulty}" coding problem for the topic: "${targetTopic}".
     
     ${resumeContext}
+    ${roleContext}
+    ${companyMappingContext}
     
     Instructions:
     1. The problem must have a Title and a clear description in standard LeetCode markdown format. The description MUST explicitly contain separate markdown sections for: Problem Statement, Input Format, Output Format, and Examples (with Input, Output, and Explanation).
     2. Define realistic constraints (e.g. constraints on array size, element ranges).
     3. Provide starter templates with standard function names for all 6 languages: javascript, python, cpp, java, c, go.
     4. Provide exactly 4 test cases, categorized as type: 'visible' (sample), 'hidden', 'edge', and 'stress'. Test cases input should be in standard formatted strings (e.g. "[2,7,11], 9").
-    5. Add 2-3 step-by-step hints.
+    5. Add exactly 4 progressive hint levels: Hint 1 (small clue), Hint 2 (approach guidance), Hint 3 (pseudo-solution guidance), and Hint 4 (near-complete strategy).
     6. Include expected time and space complexities.
     7. Tag the company "${targetComp}" and topic "${targetTopic}".
     8. Write a clear detailed explanation of the solution.
@@ -2121,11 +2163,48 @@ function getDynamicMockDSAProblem(topic, company, difficulty) {
         { input: "10, \"car\"", expectedOutput: "true", isSample: true, type: "visible" }
       ],
       tags: ["OOP", "Classes"]
+    },
+    "Union Find": {
+      title: "Number of Connected Components",
+      description: "Given `n` nodes and a list of undirected edges, return the number of connected components in the graph.",
+      difficulty: "Medium",
+      category: "Union Find",
+      constraints: ["1 <= n <= 2000", "0 <= edges.length <= 5000"],
+      starterTemplates: {
+        javascript: "function countComponents(n, edges) {\n  return 0;\n}",
+        python: "def count_components(n: int, edges: list[list[int]]) -> int:\n    return 0",
+        cpp: "class Solution {\npublic:\n    int countComponents(int n, vector<vector<int>>& edges) {\n        return 0;\n    }\n};",
+        java: "class Solution {\n    public int countComponents(int n, int[][] edges) {\n        return 0;\n    }\n}"
+      },
+      testCases: [
+        { input: "5, [[0,1],[1,2],[3,4]]", expectedOutput: "2", isSample: true, type: "visible" },
+        { input: "5, [[0,1],[1,2],[2,3],[3,4]]", expectedOutput: "1", isSample: true, type: "hidden" },
+        { input: "4, [[0,1],[2,3]]", expectedOutput: "2", isSample: false, type: "edge" },
+        { input: "1, []", expectedOutput: "1", isSample: false, type: "stress" }
+      ],
+      tags: ["Union Find", "Graph"],
+      expectedTime: "O(N + E log N)",
+      expectedSpace: "O(N)",
+      hints: [
+        "Initialize a parent array parent[i] = i for all nodes.",
+        "Implement the Find operation with path compression.",
+        "Implement the Union operation. For each edge, union the two nodes.",
+        "Each successful union reduces the number of connected components by 1."
+      ]
     }
   };
 
   const selectedProblem = fallbackRegistry[cleanTopic] || fallbackRegistry["Arrays"];
   
+  // Pad hints to exactly 4 items
+  const hints = selectedProblem.hints || [];
+  const paddedHints = [
+    hints[0] || "Analyze the problem constraints and sample test cases carefully.",
+    hints[1] || "Think about the data structures that can help optimize this process.",
+    hints[2] || "Formulate the algorithmic strategy or base case logic.",
+    hints[3] || "Verify edge conditions (empty inputs, out-of-bounds indices) before compiling."
+  ];
+
   // Augment title and tags dynamically based on selected company
   return {
     title: `${cleanCompany} ${selectedProblem.title}`,
@@ -2140,7 +2219,7 @@ function getDynamicMockDSAProblem(topic, company, difficulty) {
     tags: selectedProblem.tags || [cleanTopic],
     expectedTime: selectedProblem.expectedTime || "O(N)",
     expectedSpace: selectedProblem.expectedSpace || "O(1)",
-    hints: selectedProblem.hints || ["Use the optimal structures matching this topic.", "Evaluate border conditions first."],
+    hints: paddedHints,
     companyTags: [cleanCompany],
     explanation: selectedProblem.explanation || "Walk through basic iterations to fulfill optimal outcomes."
   };
