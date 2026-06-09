@@ -2,12 +2,13 @@
   "name": "ai-interview-prep-platform",
   "version": "1.0.0",
   "description": "Root orchestrator for the MERN AI Interview Preparation Platform",
-  "main": "server.js",
+  "main": "backend/server.js",
   "scripts": {
     "install-all": "npm install --prefix backend && npm install --prefix frontend --legacy-peer-deps",
     "backend": "npm run dev --prefix backend",
     "frontend": "npm run dev --prefix frontend",
     "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+    "start": "node backend/server.js"
   },
   "dependencies": {
     "concurrently": "^8.2.2"
