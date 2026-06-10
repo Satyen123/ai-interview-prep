@@ -19,6 +19,9 @@ if (apiKey) {
   console.log('No GEMINI_API_KEY found. Running in Fallback/Mock AI mode.');
 }
 
+export const isAiEngineActive = () => aiEngine !== null;
+
+
 /**
  * Helper to clean AI JSON responses (removes ```json markdown wrapping if present)
  */

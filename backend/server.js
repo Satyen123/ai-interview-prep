@@ -17,6 +17,7 @@ import codingRoutes from './routes/codingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 
+import { isAiEngineActive } from './services/aiService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
 
@@ -64,6 +65,13 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    gemini: isAiEngineActive() ? 'initialized' : 'fallback',
+    environment: {
+      MONGO_URI: !!process.env.MONGO_URI,
+      JWT_SECRET: !!process.env.JWT_SECRET,
+      GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    },
     timestamp: new Date().toISOString()
   });
 });
