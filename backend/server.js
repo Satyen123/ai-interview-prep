@@ -44,7 +44,7 @@ const app = express();
 // Request Tracing Middleware (must be first)
 console.log('Registering Request Tracing Middleware...');
 app.use((req, res, next) => {
-  console.log("[REQUEST]", req.method, req.url);
+  console.log("[REQUEST]", req.method, req.originalUrl);
   console.log(`[REQUEST TRACE] Method: ${req.method} | Url: ${req.originalUrl} | IP: ${req.ip} | Host: ${req.headers.host}`);
   next();
 });
@@ -53,7 +53,9 @@ console.log('Request Tracing Middleware Registered.');
 // Minimal diagnostics routes registered before other middlewares
 console.log('Registering minimal /ping and /health routes...');
 app.get("/ping", (req, res) => {
-  res.status(200).send("pong");
+  res.status(200).json({
+    pong: true
+  });
 });
 
 app.get("/health", (req, res) => {
@@ -78,19 +80,11 @@ console.log('Registering compression middleware...');
 app.use(compression());
 console.log('compression middleware registered.');
 
-// Rate limiting
-console.log('Registering rateLimiter middleware on /api...');
-app.use('/api', rateLimiter);
-console.log('rateLimiter middleware registered.');
+// Rate limiting (Temporarily disabled for diagnostics)
+console.log('rateLimiter middleware temporarily bypassed.');
 
-// Configure Helmet securely, permitting static PDF access
-console.log('Registering helmet middleware...');
-app.use(
-  helmet({
-    crossOriginResourcePolicy: false,
-  })
-);
-console.log('helmet middleware registered.');
+// Configure Helmet securely, permitting static PDF access (Temporarily disabled for diagnostics)
+console.log('helmet middleware temporarily bypassed.');
 
 // API Request Logging
 console.log('Registering morgan middleware...');
