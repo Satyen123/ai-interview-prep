@@ -24,6 +24,17 @@ import mongoose from 'mongoose';
 // Setup environment configurations
 dotenv.config();
 
+// Environment verification - Fail Fast in production
+if (process.env.NODE_ENV === 'production') {
+  const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'GEMINI_API_KEY'];
+  const missingEnv = requiredEnv.filter(env => !process.env[env]);
+  if (missingEnv.length > 0) {
+    console.error(`\n❌ CRITICAL CONFIGURATION ERROR: Missing required environment variables: ${missingEnv.join(', ')}`);
+    console.error('Please configure these environment variables in the Railway dashboard and redeploy.');
+    process.exit(1);
+  }
+}
+
 // Establish MongoDB connection
 connectDB();
 
@@ -42,8 +53,10 @@ app.use(
   })
 );
 
-// Logging in non-production
-if (process.env.NODE_ENV !== 'production') {
+// API Request Logging
+if (process.env.NODE_ENV === 'production') {
+  app.use(morgan('combined'));
+} else {
   app.use(morgan('dev'));
 }
 
@@ -66,12 +79,7 @@ app.get('/health', (req, res) => {
     status: 'ok',
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     gemini: isAiEngineActive() ? 'initialized' : 'fallback',
-    environment: {
-      MONGO_URI: !!process.env.MONGO_URI,
-      JWT_SECRET: !!process.env.JWT_SECRET,
-      GEMINI_API_KEY: !!process.env.GEMINI_API_KEY,
-      NODE_ENV: process.env.NODE_ENV || 'development'
-    },
+    environment: process.env.NODE_ENV || 'production',
     timestamp: new Date().toISOString()
   });
 });
@@ -114,3 +122,14 @@ const gracefulShutdown = (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Catch-all runtime stability handlers
+process.on('uncaughtException', (err) => {
+  console.error('❌ CRITICAL UNCAUGHT EXCEPTION:', err.stack || err);
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
