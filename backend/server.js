@@ -40,58 +40,100 @@ connectDB();
 
 const app = express();
 
+// Request Tracing Middleware (must be first)
+console.log('Registering Request Tracing Middleware...');
+app.use((req, res, next) => {
+  console.log(`[REQUEST TRACE] Method: ${req.method} | Url: ${req.originalUrl} | IP: ${req.ip} | Host: ${req.headers.host}`);
+  next();
+});
+console.log('Request Tracing Middleware Registered.');
+
 // Standard middlewares
+console.log('Registering express.json middleware...');
 app.use(express.json());
+console.log('express.json middleware registered.');
+
+console.log('Registering cors middleware...');
 app.use(cors());
+console.log('cors middleware registered.');
+
+console.log('Registering compression middleware...');
 app.use(compression());
+console.log('compression middleware registered.');
+
+console.log('Registering rateLimiter middleware on /api...');
 app.use('/api', rateLimiter);
+console.log('rateLimiter middleware registered.');
 
 // Configure Helmet securely, permitting static PDF access
+console.log('Registering helmet middleware...');
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
   })
 );
+console.log('helmet middleware registered.');
 
 // API Request Logging
+console.log('Registering morgan middleware...');
 if (process.env.NODE_ENV === 'production') {
   app.use(morgan('combined'));
 } else {
   app.use(morgan('dev'));
 }
+console.log('morgan middleware registered.');
 
 // Serve uploaded resumes statically
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+console.log('Registering /uploads static route...');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+console.log('/uploads static route registered.');
 
 // Core API endpoints routing registration
+console.log('Registering Core API routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/interview', interviewRoutes);
 app.use('/api/resume', resumeRoutes);
 app.use('/api/coding', codingRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
+console.log('Core API routes registered.');
 
 // Health check route for Railway container metrics
+console.log('Registering /health route...');
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    gemini: isAiEngineActive() ? 'initialized' : 'fallback',
-    environment: process.env.NODE_ENV || 'production',
-    timestamp: new Date().toISOString()
-  });
+  console.log('[HEALTH ENDPOINT HIT]');
+  try {
+    const healthPayload = {
+      status: 'ok',
+      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+      gemini: isAiEngineActive() ? 'initialized' : 'fallback',
+      environment: process.env.NODE_ENV || 'production',
+      timestamp: new Date().toISOString()
+    };
+    console.log('[HEALTH RESPONSE PAYLOAD]', JSON.stringify(healthPayload));
+    res.json(healthPayload);
+  } catch (error) {
+    console.error('[HEALTH ENDPOINT ERROR]', error.stack || error);
+    res.status(500).json({ error: error.message });
+  }
 });
+console.log('/health route registered.');
 
 // Landing route check
+console.log('Registering root / route...');
 app.get('/', (req, res) => {
+  console.log('[ROOT ENDPOINT HIT]');
   res.json({ message: 'AI Interview Prep API is running securely...' });
 });
+console.log('root / route registered.');
 
 // Centralized error boundary middlewares
+console.log('Registering error boundary handlers...');
 app.use(notFound);
 app.use(errorHandler);
+console.log('error boundary handlers registered.');
 
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, '0.0.0.0', () => {
