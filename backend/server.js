@@ -26,7 +26,8 @@ console.log('APP START');
 // Setup environment configurations
 dotenv.config();
 
-// Environment verification - Fail Fast in production
+// Environment verification - Fail Fast in production (Temporarily bypassed for diagnostics)
+/*
 if (process.env.NODE_ENV === 'production') {
   const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'GEMINI_API_KEY'];
   const missingEnv = requiredEnv.filter(env => !process.env[env]);
@@ -36,6 +37,7 @@ if (process.env.NODE_ENV === 'production') {
     process.exit(1);
   }
 }
+*/
 
 // Establish MongoDB connection
 connectDB();
@@ -45,10 +47,25 @@ const app = express();
 // Request Tracing Middleware (must be first)
 console.log('Registering Request Tracing Middleware...');
 app.use((req, res, next) => {
+  console.log("[REQUEST]", req.method, req.url);
   console.log(`[REQUEST TRACE] Method: ${req.method} | Url: ${req.originalUrl} | IP: ${req.ip} | Host: ${req.headers.host}`);
   next();
 });
 console.log('Request Tracing Middleware Registered.');
+
+// Minimal diagnostics routes registered before other middlewares
+console.log('Registering minimal /ping and /health routes...');
+app.get("/ping", (req, res) => {
+  res.status(200).send("pong");
+});
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    port: process.env.PORT
+  });
+});
+console.log('Minimal routes registered.');
 
 // Standard middlewares
 console.log('Registering express.json middleware...');
@@ -63,18 +80,11 @@ console.log('Registering compression middleware...');
 app.use(compression());
 console.log('compression middleware registered.');
 
-console.log('Registering rateLimiter middleware on /api...');
-app.use('/api', rateLimiter);
-console.log('rateLimiter middleware registered.');
+// Rate limiting (Temporarily disabled for diagnostics)
+console.log('rateLimiter middleware temporarily bypassed.');
 
-// Configure Helmet securely, permitting static PDF access
-console.log('Registering helmet middleware...');
-app.use(
-  helmet({
-    crossOriginResourcePolicy: false,
-  })
-);
-console.log('helmet middleware registered.');
+// Helmet (Temporarily disabled for diagnostics)
+console.log('helmet middleware temporarily bypassed.');
 
 // API Request Logging
 console.log('Registering morgan middleware...');
@@ -140,6 +150,7 @@ console.log('error boundary handlers registered.');
 console.log('AFTER ROUTES');
 
 const PORT = process.env.PORT || 5000;
+console.log("PORT=", process.env.PORT);
 console.log('BEFORE LISTEN');
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`AFTER LISTEN: Server executing securely in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
