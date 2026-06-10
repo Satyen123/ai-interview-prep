@@ -26,21 +26,18 @@ console.log('APP START');
 // Setup environment configurations
 dotenv.config();
 
-// Environment verification - Fail Fast in production (Temporarily bypassed for diagnostics)
-/*
-if (process.env.NODE_ENV === 'production') {
-  const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'GEMINI_API_KEY'];
-  const missingEnv = requiredEnv.filter(env => !process.env[env]);
-  if (missingEnv.length > 0) {
-    console.error(`\n❌ CRITICAL CONFIGURATION ERROR: Missing required environment variables: ${missingEnv.join(', ')}`);
-    console.error('Please configure these environment variables in the Railway dashboard and redeploy.');
-    process.exit(1);
-  }
-}
-*/
+// Startup Diagnostics
+console.log("NODE_ENV =", process.env.NODE_ENV);
+console.log("MONGO_URI exists =", !!(process.env.MONGO_URI || process.env.MONGODB_URI));
+console.log("PORT =", process.env.PORT);
 
-// Establish MongoDB connection
-connectDB();
+// Establish MongoDB connection (Fail Fast & Block until connected)
+try {
+  await connectDB();
+} catch (error) {
+  console.error("❌ MONGODB CONNECTION FATAL ERROR ON STARTUP:", error.message);
+  process.exit(1);
+}
 
 const app = express();
 
@@ -62,7 +59,8 @@ app.get("/ping", (req, res) => {
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
-    port: process.env.PORT
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+    server: "online"
   });
 });
 console.log('Minimal routes registered.');
@@ -80,11 +78,19 @@ console.log('Registering compression middleware...');
 app.use(compression());
 console.log('compression middleware registered.');
 
-// Rate limiting (Temporarily disabled for diagnostics)
-console.log('rateLimiter middleware temporarily bypassed.');
+// Rate limiting
+console.log('Registering rateLimiter middleware on /api...');
+app.use('/api', rateLimiter);
+console.log('rateLimiter middleware registered.');
 
-// Helmet (Temporarily disabled for diagnostics)
-console.log('helmet middleware temporarily bypassed.');
+// Configure Helmet securely, permitting static PDF access
+console.log('Registering helmet middleware...');
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+console.log('helmet middleware registered.');
 
 // API Request Logging
 console.log('Registering morgan middleware...');
@@ -113,26 +119,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 console.log('Core API routes registered.');
 
-// Health check route for Railway container metrics
-console.log('Registering /health route...');
-app.get('/health', (req, res) => {
-  console.log('[HEALTH ENDPOINT HIT]');
-  try {
-    const healthPayload = {
-      status: 'ok',
-      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-      gemini: isAiEngineActive() ? 'initialized' : 'fallback',
-      environment: process.env.NODE_ENV || 'production',
-      timestamp: new Date().toISOString()
-    };
-    console.log('[HEALTH RESPONSE PAYLOAD]', JSON.stringify(healthPayload));
-    res.json(healthPayload);
-  } catch (error) {
-    console.error('[HEALTH ENDPOINT ERROR]', error.stack || error);
-    res.status(500).json({ error: error.message });
-  }
-});
-console.log('/health route registered.');
+
 
 // Landing route check
 console.log('Registering root / route...');

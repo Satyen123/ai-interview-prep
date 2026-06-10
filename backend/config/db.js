@@ -1,8 +1,13 @@
 import mongoose from 'mongoose';
 
 const connectDB = async (retryCount = 5) => {
-  const connString = process.env.MONGO_URI || 'mongodb://localhost:27017/ai-interview-prep';
+  const connString = process.env.MONGO_URI || process.env.MONGODB_URI;
   
+  if (!connString) {
+    console.error('❌ CRITICAL DATABASE ERROR: process.env.MONGO_URI or process.env.MONGODB_URI is missing or undefined!');
+    throw new Error('Missing MONGO_URI environment variable');
+  }
+
   // Production connection options
   const options = {
     connectTimeoutMS: 10000, // Timeout after 10s
@@ -10,17 +15,20 @@ const connectDB = async (retryCount = 5) => {
   };
 
   try {
+    console.log(`Attempting to connect to MongoDB Atlas... (${retryCount} retries remaining)`);
     const conn = await mongoose.connect(connString, options);
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     console.log('MONGODB CONNECTED');
+    return conn;
   } catch (error) {
     console.error(`⚠️ MongoDB Connection Error: ${error.message}`);
     if (retryCount > 0) {
-      console.log(`Retrying MongoDB connection in 5 seconds... (${retryCount} retries remaining)`);
-      setTimeout(() => connectDB(retryCount - 1), 5000);
+      console.log('Retrying MongoDB connection in 5 seconds...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      return connectDB(retryCount - 1);
     } else {
       console.error('❌ Failed to connect to MongoDB after maximum retries.');
-      console.warn('⚠️ Server will continue executing in Mock Database mode.');
+      throw new Error('Database connection failed after maximum retries');
     }
   }
 };
