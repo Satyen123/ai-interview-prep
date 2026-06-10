@@ -12,6 +12,7 @@ if (apiKey) {
     const ai = new GoogleGenerativeAI({ apiKey });
     aiEngine = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
     console.log('Gemini AI Engine Initialized.');
+    console.log('GEMINI INITIALIZED');
   } catch (error) {
     console.error('Failed to initialize Gemini AI Engine:', error.message);
   }

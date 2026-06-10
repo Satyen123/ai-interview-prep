@@ -21,6 +21,8 @@ import { isAiEngineActive } from './services/aiService.js';
 import compression from 'compression';
 import mongoose from 'mongoose';
 
+console.log('APP START');
+
 // Setup environment configurations
 dotenv.config();
 
@@ -91,6 +93,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 console.log('/uploads static route registered.');
 
 // Core API endpoints routing registration
+console.log('BEFORE ROUTES');
 console.log('Registering Core API routes...');
 app.use('/api/auth', authRoutes);
 app.use('/api/interview', interviewRoutes);
@@ -134,10 +137,12 @@ console.log('Registering error boundary handlers...');
 app.use(notFound);
 app.use(errorHandler);
 console.log('error boundary handlers registered.');
+console.log('AFTER ROUTES');
 
 const PORT = process.env.PORT || 5000;
+console.log('BEFORE LISTEN');
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server executing securely in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  console.log(`AFTER LISTEN: Server executing securely in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 
 // Graceful shutdown handling
@@ -174,4 +179,9 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
+
+process.on('exit', (code) => {
+  console.log('PROCESS EXIT', code);
+});
+
 

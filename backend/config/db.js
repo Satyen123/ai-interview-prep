@@ -12,6 +12,7 @@ const connectDB = async (retryCount = 5) => {
   try {
     const conn = await mongoose.connect(connString, options);
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log('MONGODB CONNECTED');
   } catch (error) {
     console.error(`⚠️ MongoDB Connection Error: ${error.message}`);
     if (retryCount > 0) {
