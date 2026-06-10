@@ -31,6 +31,13 @@ console.log("NODE_ENV =", process.env.NODE_ENV);
 console.log("MONGO_URI exists =", !!(process.env.MONGO_URI || process.env.MONGODB_URI));
 console.log("PORT =", process.env.PORT);
 
+// Environment verification - Fail Fast on missing JWT_SECRET in production
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.error("❌ CRITICAL CONFIGURATION ERROR: Missing required environment variable: JWT_SECRET");
+  console.error("Please configure JWT_SECRET on the Railway dashboard and redeploy.");
+  process.exit(1);
+}
+
 // Establish MongoDB connection (Fail Fast & Block until connected)
 try {
   await connectDB();
@@ -80,11 +87,19 @@ console.log('Registering compression middleware...');
 app.use(compression());
 console.log('compression middleware registered.');
 
-// Rate limiting (Temporarily disabled for diagnostics)
-console.log('rateLimiter middleware temporarily bypassed.');
+// Rate limiting
+console.log('Registering rateLimiter middleware on /api...');
+app.use('/api', rateLimiter);
+console.log('rateLimiter middleware registered.');
 
-// Configure Helmet securely, permitting static PDF access (Temporarily disabled for diagnostics)
-console.log('helmet middleware temporarily bypassed.');
+// Configure Helmet securely, permitting static PDF access
+console.log('Registering helmet middleware...');
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+console.log('helmet middleware registered.');
 
 // API Request Logging
 console.log('Registering morgan middleware...');
