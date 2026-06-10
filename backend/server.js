@@ -131,11 +131,28 @@ console.log('error boundary handlers registered.');
 console.log('AFTER ROUTES');
 
 const PORT = process.env.PORT || 5000;
-console.log("PORT=", process.env.PORT);
+console.log("PORT =", process.env.PORT);
 console.log('BEFORE LISTEN');
+
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`AFTER LISTEN: Server executing securely in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
+
+// Fallback listener on port 5000 (resolves any manual port mappings in the Railway Dashboard settings)
+const cleanPort = Number(PORT);
+if (cleanPort !== 5000) {
+  try {
+    const backupServer = app.listen(5000, '0.0.0.0', () => {
+      console.log(`AFTER LISTEN (BACKUP): Server executing securely on backup port 5000`);
+    });
+    
+    backupServer.on('error', (err) => {
+      console.warn(`⚠️ Warning: Backup server on port 5000 failed to start: ${err.message}`);
+    });
+  } catch (err) {
+    console.warn(`⚠️ Warning: Could not bind backup listener on port 5000: ${err.message}`);
+  }
+}
 
 // Graceful shutdown handling
 const gracefulShutdown = (signal) => {
