@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config';
+
 import { 
   ShieldCheck, 
   Users, 
@@ -98,7 +100,7 @@ export default function AdminDashboard() {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get('http://localhost:5000/api/admin/stats');
+        const response = await axios.get(`${API_URL}/admin/stats`);
         setStats(response.data);
       } catch (err) {
         console.error('Failed to load admin stats:', err);
@@ -130,7 +132,7 @@ export default function AdminDashboard() {
     ];
 
     try {
-      await axios.post('http://localhost:5000/api/admin/problems', {
+      await axios.post(`${API_URL}/admin/problems`, {
         title,
         description,
         difficulty,

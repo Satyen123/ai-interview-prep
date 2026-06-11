@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config';
+
 import { 
   Radar, 
   RadarChart, 
@@ -51,8 +53,8 @@ export default function Analytics() {
           }
         };
         const [statsRes, historyRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/analytics/user', config),
-          axios.get('http://localhost:5000/api/interview/history', config)
+          axios.get(`${API_URL}/analytics/user`, config),
+          axios.get(`${API_URL}/interview/history`, config)
         ]);
         
         setStats(statsRes.data);

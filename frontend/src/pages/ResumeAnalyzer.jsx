@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config';
+
 import { useAuthStore } from '../store/authStore';
 import PageWrapper from '../components/layout/PageWrapper';
 import SubscriptionModal from '../components/SubscriptionModal';
@@ -637,7 +639,7 @@ export default function ResumeAnalyzer() {
 
   const handleEnhanceBulletText = async (bulletText) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/resume/tools/enhance-bullet', {
+      const response = await axios.post(`${API_URL}/resume/tools/enhance-bullet`, {
         bulletText,
         targetRole,
         temperature: parseFloat(temperature || 0.7)
@@ -1585,7 +1587,7 @@ ${eduText}
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await axios.get('http://localhost:5000/api/resume/history');
+        const response = await axios.get(`${API_URL}/resume/history`);
         setHistory(response.data);
       } catch (err) {
         console.error('Failed to load resume history:', err);
@@ -1626,7 +1628,7 @@ ${eduText}
     formData.append('targetRole', targetRole);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/resume/upload', formData, {
+      const response = await axios.post(`${API_URL}/resume/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setReport(response.data.resume);
@@ -1674,7 +1676,7 @@ ${eduText}
     formData.append('targetRole', targetRole);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/resume/optimize', formData, {
+      const response = await axios.post(`${API_URL}/resume/optimize`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       clearInterval(progressTimer);
@@ -1703,7 +1705,7 @@ ${eduText}
     setAiConfidence(null);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/resume/tools/enhance-bullet', {
+      const response = await axios.post(`${API_URL}/resume/tools/enhance-bullet`, {
         bulletText: bulletInput,
         targetRole,
         temperature: parseFloat(temperature || 0.7)
@@ -1742,7 +1744,7 @@ ${eduText}
     setGeneratedLetter('');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/resume/tools/generate-cover', {
+      const response = await axios.post(`${API_URL}/resume/tools/generate-cover`, {
         companyName,
         jobRole: coverRole,
         tone: selectedCoverTone,
@@ -1782,7 +1784,7 @@ ${eduText}
     setGeneratedProj('');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/resume/tools/generate-project', {
+      const response = await axios.post(`${API_URL}/resume/tools/generate-project`, {
         topic: projectTopic,
         techStack: projectTech,
         targetRole,

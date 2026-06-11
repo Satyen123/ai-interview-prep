@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_URL } from '../config';
+
 import { 
   BarChart, 
   AreaChart, 
@@ -43,7 +45,7 @@ export default function Dashboard() {
       setLoading(true);
       setError(null);
       try {
-        const response = await axios.get('http://localhost:5000/api/analytics/user');
+        const response = await axios.get(`${API_URL}/analytics/user`);
         setStats(response.data);
       } catch (err) {
         console.error('Failed to load user analytics:', err);

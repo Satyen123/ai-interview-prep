@@ -3,6 +3,8 @@ import { useCodingStore } from '../store/codingStore';
 import { useAuthStore } from '../store/authStore';
 import Editor from '@monaco-editor/react';
 import axios from 'axios';
+import { API_URL } from '../config';
+
 import { 
   Code2, 
   Play, 
@@ -391,7 +393,7 @@ export default function CodingSandbox() {
     setInterviewFeedback(null);
     try {
       // Evaluate interview reply using standard analysis complexity backend tool
-      const res = await axios.post('http://localhost:5000/api/coding/coach/review', {
+      const res = await axios.post(`${API_URL}/coding/coach/review`, {
         problemId: activeProblem._id,
         code: editorCode,
         language: activeLanguage
@@ -429,7 +431,7 @@ export default function CodingSandbox() {
     
     let allProbs = problems;
     try {
-      const response = await axios.get('http://localhost:5000/api/coding/problems');
+      const response = await axios.get(`${API_URL}/coding/problems`);
       if (response.data && response.data.length > 0) {
         allProbs = response.data;
         useCodingStore.setState({ problems: allProbs });
@@ -613,7 +615,7 @@ export default function CodingSandbox() {
 
     let allProbs = problems;
     try {
-      const response = await axios.get('http://localhost:5000/api/coding/problems');
+      const response = await axios.get(`${API_URL}/coding/problems`);
       if (response.data && response.data.length > 0) {
         allProbs = response.data;
         useCodingStore.setState({ problems: allProbs });
@@ -644,7 +646,7 @@ export default function CodingSandbox() {
       if (isPremiumUser) {
         try {
           useCodingStore.setState({ aiLoading: true });
-          const genResponse = await axios.post('http://localhost:5000/api/coding/generate-problem', {
+          const genResponse = await axios.post(`${API_URL}/coding/generate-problem`, {
             topic: category || 'Arrays',
             targetCompany: company || 'Google',
             difficulty: nextDifficulty
