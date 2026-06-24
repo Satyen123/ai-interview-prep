@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
-import { 
-  Rocket, 
-  ShieldAlert, 
-  Cpu, 
-  TrendingUp, 
-  BookOpen, 
-  Activity, 
-  Flame, 
-  Thermometer, 
-  Network, 
-  FileText, 
-  Layers, 
-  Menu, 
+import {
+  Rocket,
+  ShieldAlert,
+  Cpu,
+  TrendingUp,
+  BookOpen,
+  Activity,
+  Flame,
+  Thermometer,
+  Network,
+  FileText,
+  Layers,
+  Menu,
   X,
   Gauge
 } from 'lucide-react';
@@ -31,7 +31,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#070b13] text-slate-100 flex flex-col font-sans">
-      
+
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#070b13]/90 backdrop-blur-md px-4 sm:px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -56,11 +56,10 @@ export default function App() {
                 key={item.id}
                 id={`nav-btn-${item.id}`}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive 
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10' 
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 {item.label}
@@ -70,7 +69,7 @@ export default function App() {
         </nav>
 
         {/* Mobile menu button */}
-        <button 
+        <button
           id="mobile-menu-toggle"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="xl:hidden p-2 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
@@ -93,11 +92,10 @@ export default function App() {
                   setActiveTab(item.id);
                   setMobileMenuOpen(false);
                 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${
-                  isActive 
-                    ? 'bg-indigo-600 text-white' 
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-semibold transition-all ${isActive
+                  ? 'bg-indigo-600 text-white'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 {item.label}
@@ -109,7 +107,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
-        
+
         {/* TAB 1: HOME / OVERVIEW */}
         {activeTab === 'home' && (
           <div className="space-y-8 animate-fadeIn">
@@ -127,14 +125,14 @@ export default function App() {
                   A peer-reviewed scientific review and quantitative performance evaluation of metric-distortion field drives. We examine the theoretical limits of spacetime manipulation and model a path to experimental validation.
                 </p>
                 <div className="flex flex-wrap gap-4">
-                  <button 
+                  <button
                     id="hero-btn-review"
                     onClick={() => setActiveTab('review')}
                     className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-5 py-2.5 rounded-lg shadow-md transition-all text-sm"
                   >
                     View Scientific Review
                   </button>
-                  <button 
+                  <button
                     id="hero-btn-redesign"
                     onClick={() => setActiveTab('redesign')}
                     className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-semibold px-5 py-2.5 rounded-lg transition-all text-sm"
@@ -315,7 +313,7 @@ export default function App() {
                     Thrust & Hover Power Requirements
                   </h4>
                   <p className="text-slate-400 text-xs leading-relaxed">
-                    Photon momentum thrust scales as $T = P_{\text{photon}}/c$. At $1\text{ GW}$ of emitted photon power, the thrust is only $3.33\text{ N}$.
+                    Photon momentum thrust scales as T = Pphoton / c. At 1 GW of emitted photon power, the thrust is only 3.33 N.
                   </p>
                   <table className="w-full text-xs text-left text-slate-300">
                     <thead>
@@ -409,9 +407,9 @@ export default function App() {
                 <div className="bg-slate-950/40 border border-slate-850 p-5 rounded-xl space-y-4">
                   <h4 className="text-sm font-bold tracking-wider uppercase text-slate-400">Speculative Photon Engine (DCE)</h4>
                   <ul className="space-y-2 text-xs text-slate-300">
-                    <li>• Thrust Scaling: $3.33\text{ nN/W}$</li>
-                    <li>• Net Thrust (1 GW Reactor): $3.33\text{ Newtons}$</li>
-                    <li>• Acceleration: $6.67 \times 10^{-5}\text{ m/s}^2$ ($10^{-6}g$)</li>
+                    <li>• Thrust Scaling: $3.33\text{nN / W}$</li>
+                    <li>• Net Thrust (1 GW Reactor): $3.33\text{Newtons}$</li>
+                    <li>• Acceleration: $6.67 \times 10^{-5}\text{m / s}^2$ ($10^{-6}g$)</li>
                     <li>• Mission Profile: Deep space only (decades of travel)</li>
                   </ul>
                 </div>
@@ -419,9 +417,9 @@ export default function App() {
                 <div className="bg-indigo-950/20 border border-indigo-900/40 p-5 rounded-xl space-y-4">
                   <h4 className="text-sm font-bold tracking-wider uppercase text-indigo-300">Redesigned F-MPD Engine</h4>
                   <ul className="space-y-2 text-xs text-slate-300">
-                    <li>• Thrust Scaling: $22.1\text{ }\mu\text{N/W}$ (6,625x higher)</li>
-                    <li>• Net Thrust (1 GW Reactor): $22,100\text{ Newtons}$</li>
-                    <li>• Acceleration: $0.442\text{ m/s}^2$ ($0.045g$)</li>
+                    <li>• Thrust Scaling: $22.1\text{ }\mu\text{N / W}$ (6,625x higher)</li>
+                    <li>• Net Thrust (1 GW Reactor): $22,100\text{Newtons}$</li>
+                    <li>• Acceleration: $0.442\text{m / s}^2$ ($0.045g$)</li>
                     <li>• Mission Profile: Interplanetary transit (Earth-Mars in months)</li>
                   </ul>
                 </div>
@@ -431,7 +429,7 @@ export default function App() {
               <div className="bg-slate-950/50 border border-slate-800 p-6 rounded-lg space-y-4">
                 <h4 className="font-bold text-white">How the F-MPD System Operates:</h4>
                 <p className="text-slate-400 text-xs leading-relaxed">
-                  The $1\text{-GW}$ D-Helium-3 fusion reactor ionizes a gaseous propellant (e.g. Argon) into a high-density plasma. The plasma is then accelerated using the Lorentz force ($\vec{F} = \vec{J} \times \vec{B}$) generated by coaxial electromagnetic fields. This transfers momentum to the exhaust gas, complying with the conservation of momentum while achieving a high specific impulse ($I_{\text{sp}} = 6000\text{ s}$).
+                  The $1\text{-GW}$ D-Helium-3 fusion reactor ionizes a gaseous propellant (e.g. Argon) into a high-density plasma. The plasma is then accelerated using the Lorentz force ($\vec{F} = \vec{J} \times \vec{B}$) generated by coaxial electromagnetic fields. This transfers momentum to the exhaust gas, complying with the conservation of momentum while achieving a high specific impulse ($I_{\text{sp}} = 6000\text{s}$).
                 </p>
               </div>
             </div>
