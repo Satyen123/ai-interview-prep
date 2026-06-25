@@ -40,7 +40,9 @@ import {
   Edit2,
   Save,
   Star,
-  Bookmark
+  Bookmark,
+  Menu,
+  X
 } from 'lucide-react';
 import PageWrapper from '../components/layout/PageWrapper';
 import SubscriptionModal from '../components/SubscriptionModal';
@@ -102,6 +104,7 @@ export default function CodingSandbox() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [splitRatio, setSplitRatio] = useState('50/50'); // '40/60', '50/50', '60/40'
   const [activeMobileTab, setActiveMobileTab] = useState('problem'); // problem, editor, results
+  const [showSidebarDrawer, setShowSidebarDrawer] = useState(false);
   const [submissionSearch, setSubmissionSearch] = useState('');
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('');
 
@@ -776,7 +779,305 @@ export default function CodingSandbox() {
   return (
     <PageWrapper>
       <div className={`relative text-left ${isFullscreen ? 'fixed inset-0 z-50 bg-[#030303] p-6 overflow-y-auto' : ''}`}>
-        
+
+        {/* MOBILE SIDEBAR DRAWER OVERLAY */}
+        {showSidebarDrawer && (
+          <div className="fixed inset-0 z-50 lg:hidden flex animate-fadeIn">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+              onClick={() => setShowSidebarDrawer(false)}
+            ></div>
+            
+            {/* Drawer Content */}
+            <div className="relative flex flex-col w-[85%] max-w-sm bg-zinc-950 border-r border-white/10 p-6 overflow-y-auto h-full z-10 gap-6 animate-slideIn text-left">
+              <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-cyber-neon" />
+                  <span className="font-extrabold text-xs text-white uppercase tracking-widest">Challenges Catalog</span>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setShowSidebarDrawer(false)}
+                  className="text-gray-400 hover:text-white p-1 hover:bg-white/5 rounded-lg transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {/* Drawer Content Panels */}
+              <div className="flex flex-col gap-6" onClick={(e) => {
+                if (e.target.closest('button')) {
+                  setShowSidebarDrawer(false);
+                }
+              }}>
+                {/* Mode Selector */}
+                <div className="glass-panel p-1.5 rounded-2xl border border-white/5 bg-black/40 flex mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsInterviewMode(false)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                      !isInterviewMode
+                        ? 'bg-gradient-to-r from-cyber-accent to-cyber-neon text-white shadow-lg shadow-cyber-accent/20'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    <Code2 className="w-3.5 h-3.5" />
+                    Practice Mode
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsInterviewMode(true)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-300 ${
+                      isInterviewMode
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/20'
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                    AI Interview Mode
+                  </button>
+                </div>
+
+                {!isInterviewMode ? (
+                  <>
+                    {dailyChallenge && (
+                      <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-gradient-to-br from-amber-950/20 via-zinc-900 to-[#1e130c]/30 relative overflow-hidden border-l-amber-500/40">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full filter blur-2xl animate-pulse"></div>
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-[10px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-xl uppercase tracking-widest flex items-center gap-1">
+                            <Zap className="w-3.5 h-3.5 fill-amber-400 animate-pulse text-amber-400" />
+                            Daily Coding Challenge
+                          </span>
+                          <span className="text-[10px] font-black text-amber-300 font-mono bg-white/5 border border-white/10 px-2 py-0.5 rounded-lg">
+                            +{dailyChallenge.xpReward || 200} XP
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-1 text-left">
+                          <h4 className="text-xs font-black text-white">{dailyChallenge.problemId?.title || 'Daily Challenge'}</h4>
+                          <div className="flex justify-between items-center mt-2.5">
+                            <span className="text-[9px] font-bold text-gray-500 uppercase tracking-wider block">
+                              {dailyChallenge.problemId?.category} • {dailyChallenge.problemId?.difficulty}
+                            </span>
+                            {dailyChallenge.completed ? (
+                              <span className="text-[10px] font-black text-cyber-jade bg-cyber-jade/10 border border-cyber-jade/20 px-3 py-1 rounded-xl uppercase tracking-wider flex items-center gap-1.5">
+                                <Check className="w-3.5 h-3.5" />
+                                Completed
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => selectProblem(dailyChallenge.problemId)}
+                                className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-[10px] font-black py-1.5 px-4 rounded-xl transition-all duration-300 uppercase tracking-widest shadow-md"
+                              >
+                                Solve Now
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 relative overflow-hidden bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-cyber-neon/5 rounded-full filter blur-2xl"></div>
+                      
+                      <div className="flex justify-between items-center">
+                        <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-cyber-neon" />
+                          Practice Workspace
+                        </h3>
+                        {isPremiumUser ? (
+                          <button 
+                            type="button"
+                            onClick={() => setShowGenModal(true)}
+                            className="text-[10px] font-black uppercase tracking-wider bg-cyber-neon/10 hover:bg-cyber-neon/20 border border-cyber-neon/30 text-cyber-neon px-3 py-1.5 rounded-xl transition duration-300 flex items-center gap-1.5 shadow-lg"
+                          >
+                            <Sparkles className="w-3 h-3 text-cyan-400" />
+                            AI Problem Gen
+                          </button>
+                        ) : (
+                          <button 
+                            type="button"
+                            onClick={() => setShowUpgradeModal(true)}
+                            className="text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-cyber-accent to-cyber-neon text-white px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-lg"
+                          >
+                            <Lock className="w-3 h-3" />
+                            Unlock AI Gen
+                          </button>
+                        )}
+                      </div>
+
+                      <form onSubmit={handleFilterSearch} className="flex flex-col gap-3">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Search problems..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full bg-[#030303] border border-white/10 rounded-xl py-2.5 px-3 text-xs font-medium text-white outline-none focus:border-cyber-accent/50 focus:ring-1 focus:ring-cyber-accent/20 transition-all pl-9"
+                          />
+                          <Search className="w-4 h-4 text-gray-500 absolute left-3 top-3" />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <select
+                            value={categoryFilter}
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                            className="bg-white/2 border border-white/5 rounded-xl py-2 px-2 text-xs font-semibold text-gray-400 outline-none cursor-pointer"
+                          >
+                            <option value="">All Topics</option>
+                            <option value="Arrays">Arrays</option>
+                            <option value="Strings">Strings</option>
+                            <option value="Stack">Stack</option>
+                            <option value="Linked List">Linked List</option>
+                            <option value="Binary Search">Binary Search</option>
+                            <option value="Graphs">Graphs</option>
+                            <option value="Dynamic Programming">Dynamic Programming</option>
+                            <option value="Recursion">Recursion</option>
+                          </select>
+
+                          <select
+                            value={difficultyFilter}
+                            onChange={(e) => setDifficultyFilter(e.target.value)}
+                            className="bg-white/2 border border-white/5 rounded-xl py-2 px-2 text-xs font-semibold text-gray-400 outline-none cursor-pointer"
+                          >
+                            <option value="">All Difficulties</option>
+                            <option value="Easy">Easy</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Hard">Hard</option>
+                            <option value="Expert">Expert</option>
+                          </select>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button 
+                            type="submit"
+                            className="flex-1 bg-white/5 hover:bg-white/10 text-white font-bold text-xs py-2 rounded-xl border border-white/10 transition"
+                          >
+                            Apply Filters
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={handleClearFilters}
+                            className="bg-white/2 hover:bg-white/5 text-gray-500 hover:text-white font-bold text-xs px-3 rounded-xl border border-white/5 transition"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </form>
+
+                      <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto custom-scrollbar border-t border-white/5 pt-3">
+                        {loading && problems.length === 0 ? (
+                          <>
+                            {[...Array(3)].map((_, i) => (
+                              <div key={i} className="p-3 rounded-xl border border-white/5 bg-white/2 animate-pulse flex flex-col gap-2">
+                                <div className="flex justify-between">
+                                  <div className="h-3 bg-white/10 rounded w-1/2"></div>
+                                  <div className="h-3 bg-white/10 rounded w-1/4"></div>
+                                </div>
+                                <div className="h-2.5 bg-white/10 rounded w-1/3"></div>
+                              </div>
+                            ))}
+                          </>
+                        ) : problems.length === 0 ? (
+                          <div className="text-xs text-gray-500 italic p-3 text-center">No challenges matching filter parameters.</div>
+                        ) : (
+                          problems.map((prob) => {
+                            const isLocked = !isPremiumUser && prob.difficulty !== 'Easy';
+                            const isActive = activeProblem?._id === prob._id || activeProblem?.id === prob.id || activeProblem?._id === prob.id;
+                            
+                            return (
+                              <button
+                                key={prob._id || prob.id}
+                                type="button"
+                                onClick={() => handleSelectProblemSafe(prob)}
+                                className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition relative overflow-hidden group ${
+                                  isActive
+                                    ? 'bg-cyber-neon/10 border-cyber-neon/45 text-white shadow-inner'
+                                    : 'bg-white/2 border-white/5 text-gray-400 hover:text-white hover:border-white/10'
+                                }`}
+                              >
+                                <div className="flex justify-between items-center w-full">
+                                  <div className="flex items-center gap-1.5 overflow-hidden">
+                                    <h4 className="font-bold text-xs truncate max-w-[170px]">{prob.title}</h4>
+                                    {isLocked && <Lock className="w-3.5 h-3.5 text-cyber-accent shrink-0" />}
+                                  </div>
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                    prob.difficulty === 'Easy' ? 'bg-cyber-jade/10 text-cyber-jade' : prob.difficulty === 'Medium' ? 'bg-cyber-gold/10 text-cyber-gold' : 'bg-red-500/10 text-red-400'
+                                  }`}>
+                                    {prob.difficulty}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center w-full text-[9px] text-gray-500 font-bold uppercase tracking-wider">
+                                  <span>Cat: {prob.category}</span>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : !interviewSession ? (
+                  <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 relative overflow-hidden bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50">
+                    <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-yellow-400" />
+                      AI Interview Cockpit
+                    </h3>
+                    <form onSubmit={handleStartInterviewSession} className="flex flex-col gap-3 pt-2">
+                      <select
+                        value={companyFilter}
+                        onChange={(e) => setCompanyFilter(e.target.value)}
+                        className="bg-[#030303] border border-white/5 rounded-xl py-2 px-2 text-xs font-semibold text-gray-300 outline-none cursor-pointer w-full text-left"
+                      >
+                        <option value="">All Companies / Random</option>
+                        <option value="Google">Google</option>
+                        <option value="Amazon">Amazon</option>
+                        <option value="Meta">Meta</option>
+                        <option value="Microsoft">Microsoft</option>
+                      </select>
+                      <button
+                        type="submit"
+                        className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black text-xs py-3.5 rounded-xl uppercase tracking-wider"
+                      >
+                        Start Interview
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 relative overflow-hidden bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50">
+                    <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      Question Navigator
+                    </h3>
+                    <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto custom-scrollbar border-t border-white/5 pt-3">
+                      {interviewSession.questions.map((prob, i) => {
+                        const isActive = interviewSession.currentIndex === i;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleNavigateQuestion(i)}
+                            className={`p-3 rounded-xl border text-left flex items-center justify-between gap-3 transition ${
+                              isActive
+                                ? 'bg-purple-500/10 border-purple-500/40 text-white'
+                                : 'bg-white/2 border-white/5 text-gray-400 hover:text-white'
+                            }`}
+                          >
+                            <h4 className="font-bold text-xs truncate max-w-[150px]">{prob.title}</h4>
+                            <span className="text-[8px] font-black uppercase text-cyber-neon">{prob.difficulty}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TOP STATUS RIBBON & XP Progress bar */}
         {isInterviewMode && interviewSession ? (
           <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-gradient-to-r from-[#0d1425] to-[#122240] flex flex-col gap-4 relative overflow-hidden mb-6">
@@ -886,7 +1187,7 @@ export default function CodingSandbox() {
         )}
 
         {/* MOBILE THREE-WAY WORKSPACE TAB BAR */}
-        <div className="lg:hidden flex border border-white/5 bg-black/40 backdrop-blur-md sticky top-[60px] z-30 p-1.5 gap-1.5 rounded-2xl mb-5 select-none">
+        <div className="hidden border border-white/5 bg-black/40 backdrop-blur-md sticky top-[60px] z-30 p-1.5 gap-1.5 rounded-2xl mb-5 select-none">
           {[
             { id: 'problem', label: 'Problem', icon: BookOpen },
             { id: 'editor', label: 'Editor', icon: Code2 },
@@ -915,9 +1216,28 @@ export default function CodingSandbox() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 text-left items-start">
           
           {/* LEFT SIDEBAR: PROBLEM STATEMENT & UTILITIES - Custom Columns Width based on splitRatio */}
-          <div className={`${leftWidths[splitRatio]} flex-col gap-6 max-h-[calc(100vh-100px)] lg:sticky lg:top-4 overflow-y-auto pr-1 ${activeMobileTab === 'problem' ? 'flex' : 'hidden lg:flex'}`}>
+          <div className={`${leftWidths[splitRatio]} flex flex-col gap-6 h-fit lg:sticky lg:top-4 pr-1 w-full`}>
             
-            {/* PRACTICE VS INTERVIEW MODE SELECTOR */}
+            {/* Mobile Toggle Button for Sidebar Catalog */}
+            <div className="lg:hidden flex justify-between items-center bg-zinc-900/50 border border-white/5 p-4 rounded-2xl">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4.5 h-4.5 text-cyber-neon" />
+                <span className="text-xs font-black text-white uppercase tracking-wider">
+                  {activeProblem ? activeProblem.title : 'Select Challenge'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSidebarDrawer(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyber-neon/10 border border-cyber-neon/30 text-[10px] font-black text-cyber-neon uppercase tracking-widest transition duration-300"
+              >
+                <Menu className="w-3.5 h-3.5" />
+                Browse Catalog
+              </button>
+            </div>
+
+            {/* Desktop-only Sidebar panels */}
+            <div className="hidden lg:flex flex-col gap-6 w-full">
             <div className="glass-panel p-1.5 rounded-2xl border border-white/5 bg-black/40 flex mb-2">
               <button
                 type="button"
@@ -1342,9 +1662,10 @@ export default function CodingSandbox() {
                 </div>
               </div>
             )}
+            </div>
 
             {/* TAB CONTROLLERS (DESCRIPTION, COACH, SUBMISSIONS, LEADERBOARD, PATHS, ANALYTICS) */}
-            <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden flex flex-col min-h-[380px] bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50 relative">
+            <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden flex flex-col min-h-[380px] bg-gradient-to-br from-cyber-darker via-cyber-dark to-zinc-900/50 relative w-full">
               <div className="flex border-b border-white/5 bg-black/40 overflow-x-auto pr-1">
                 {[
                   { id: 'description', label: 'Problem', icon: BookOpen },
@@ -1373,7 +1694,7 @@ export default function CodingSandbox() {
               </div>
 
               {/* ACTIVE TAB CONTENT */}
-              <div className="p-6 flex-1 flex flex-col gap-4 overflow-y-auto">
+              <div className="p-6 flex-1 flex flex-col gap-4">
 
                 {/* 1. DESCRIPTION TAB */}
                 {activeLeftTab === 'description' && activeProblem && (
@@ -2274,7 +2595,7 @@ export default function CodingSandbox() {
           </div>
 
           {/* RIGHT SPLIT WORKSPACE: Monaco Editor & Output Console - Custom Columns based on splitRatio */}
-          <div className={`${rightWidths[splitRatio]} flex-col gap-6 ${activeMobileTab === 'problem' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className={`${rightWidths[splitRatio]} flex flex-col gap-6 w-full`}>
             
             {/* CODE EDITOR BOX PANEL */}
             {activeProblem ? (
@@ -2373,7 +2694,7 @@ export default function CodingSandbox() {
                   <span className="text-[10px] text-gray-500 font-bold hidden sm:inline select-none">
                     Shortcuts: [Ctrl+Enter] Run | [Ctrl+Shift+Enter] Submit
                   </span>
-                  <div className="flex gap-2.5 w-full sm:w-auto">
+                  <div className="flex flex-wrap gap-2.5 w-full sm:w-auto justify-end">
                     <button
                       type="button"
                       onClick={handleRunLocalJS}
@@ -2474,7 +2795,7 @@ export default function CodingSandbox() {
                     </div>
 
                     {/* Test cases items listing */}
-                    <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto custom-scrollbar">
+                    <div className="flex flex-col gap-2">
                       {customTestCases.map((tc, index) => {
                         const isEditing = editingCaseId === tc.id;
                         let statusColor = 'text-gray-500 bg-white/2 border-white/5';

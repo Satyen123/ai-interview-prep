@@ -77,3 +77,22 @@
   font-family: 'Courier New', Courier, monospace;
   @apply bg-cyber-darker text-emerald-400 p-4 rounded-xl border border-white/10 w-full min-h-[300px] outline-none focus:border-cyber-neon resize-y;
 }
+
+/* Animations for Drawer and Overlays */
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out forwards;
+}
