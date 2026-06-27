@@ -39,14 +39,16 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Sidebar Toggle FAB */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-tr from-cyber-accent to-cyber-neon text-white p-4 rounded-full shadow-lg shadow-cyber-accent/30 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
-        aria-label="Toggle Menu"
-      >
-        {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-      </button>
+      {/* Mobile Sidebar Toggle FAB (Visible only when closed) */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="md:hidden fixed bottom-6 right-6 z-50 bg-gradient-to-tr from-cyber-accent to-cyber-neon text-white p-4 rounded-full shadow-lg shadow-cyber-accent/30 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center"
+          aria-label="Open Menu"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Sidebar Backdrop for Mobile */}
       {isOpen && (
@@ -58,20 +60,34 @@ export default function Sidebar() {
 
       <aside 
         className={`
-          fixed inset-y-0 left-0 z-45 md:z-auto md:static
-          w-72 md:w-20 lg:w-72 xl:w-80 p-4 md:p-3 lg:p-5 bg-[#080d1a]/95 md:bg-transparent
+          fixed inset-y-0 left-0 z-50 md:z-auto md:static
+          w-[80vw] max-w-[320px] md:w-20 lg:w-72 xl:w-80 p-4 md:p-3 lg:p-5 bg-[#080d1a]/95 md:bg-transparent
           border-r border-white/5 flex flex-col gap-3
-          transition-all duration-300 ease-in-out shrink-0
+          transition-all duration-300 ease-in-out shrink-0 overflow-y-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}
       >
+        {/* Mobile-only Header with Close Button */}
+        <div className="flex items-center justify-between px-2 py-1 md:hidden">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+            PREP SYSTEM MENU
+          </span>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="text-gray-400 hover:text-white p-1 hover:bg-white/5 rounded-lg transition-all cursor-pointer"
+            aria-label="Close Menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
         <div className="hidden lg:block px-3 py-2">
           <span className="text-xs font-semibold uppercase tracking-widest text-gray-500">
             PREP SYSTEM MENU
           </span>
         </div>
         
-        <nav className="flex flex-col gap-1 select-none whitespace-nowrap">
+        <nav className="flex flex-col gap-1.5 md:gap-1 select-none whitespace-nowrap">
           {links.map((link) => {
             const Icon = link.icon;
             return (
@@ -80,7 +96,7 @@ export default function Sidebar() {
                 to={link.path}
                 onClick={() => setIsOpen(false)}
                 className={({ isActive }) => `
-                  flex items-center justify-center lg:justify-start gap-3 px-4 py-3 md:px-0 md:py-3 lg:px-4 rounded-xl text-sm font-semibold transition-all duration-300
+                  flex items-center justify-start md:justify-center lg:justify-start gap-3 px-3 py-2.5 md:px-0 md:py-3 lg:px-4 rounded-xl text-base md:text-xs lg:text-sm font-semibold transition-all duration-300
                   ${isActive 
                     ? 'bg-gradient-to-r from-cyber-accent/15 to-cyber-neon/5 border border-cyber-accent/35 text-white shadow-inner' 
                     : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
@@ -88,7 +104,7 @@ export default function Sidebar() {
                 `}
                 title={link.name}
               >
-                <Icon className="w-4 h-4 text-cyber-neon shrink-0" />
+                <Icon className="w-4 h-4 text-cyber-neon shrink-0 animate-none" />
                 <span className="md:hidden lg:inline">{link.name}</span>
               </NavLink>
             );
@@ -96,7 +112,7 @@ export default function Sidebar() {
         </nav>
 
       {/* Footer Info inside Sidebar */}
-      <div className="flex md:hidden lg:flex mt-auto bg-gradient-to-tr from-white/2 to-white/5 border border-white/5 p-4 rounded-2xl flex-col gap-2 relative overflow-hidden">
+      <div className="flex md:hidden lg:flex mt-auto bg-gradient-to-tr from-white/2 to-white/5 border border-white/5 p-3 md:p-4 rounded-2xl flex-col gap-2 relative overflow-hidden shrink-0">
         {user?.isFullPremium ? (
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-black text-yellow-400 uppercase tracking-widest flex items-center gap-1">
